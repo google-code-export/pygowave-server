@@ -1,0 +1,17 @@
+#summary The current roadmap of pygowave-server
+#labels Featured,Phase-Requirements
+
+= !PyGoWave Server Roadmap =
+
+This is my mini todo list for now.
+
+ * Create data models for basic server operation
+ * Think of an event sending/dispatching engine
+ * Experiment with robot client libraries
+ * Build a small Wave Gadget environment emulator (Javascript) to test some gadgets
+ * Try to run an example robot with the server; the Wave API needs some patches to decouple it from the Google App Engine
+ * ...
+ * Implement playback feature
+ * Use distutils to create an installable version
+ * Implement Google Wave Federation Protocol
+ * Graduate from university and get employed by Google :D
