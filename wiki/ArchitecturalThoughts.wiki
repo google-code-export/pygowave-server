@@ -1,4 +1,5 @@
 #summary Look before you leap or run into the thick of it?
+#labels Featured,Phase-Requirements,Phase-Design
 
 = Introduction =
 
@@ -77,4 +78,5 @@ The Python Twisted Framework seems to be more adequate for those XAMPP things. M
 = Conclusion =
 
 So that's what will become !PyGoWave Server. More things to come soon. If you want to provide any feedback feel free to spam into my [http://groups.google.com/group/google-wave-api/browse_thread/thread/57190718d928ac27 discussion thread at Google Groups].
+
 I'm always open to suggestions on how to make this thing better.
