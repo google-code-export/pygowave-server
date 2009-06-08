@@ -11,13 +11,13 @@
  * [http://codespeak.net/lxml/ lxml 2.2]
  * [http://www.pythonware.com/products/pil/index.htm PIL 1.1.6]
 
-== JavaScript libraries ==
+== !JavaScript libraries ==
 
-Note: These are already included in PyGoWave Server.
+Note: These are already included in !PyGoWave Server.
 
-* [http://jquery.com/ jQuery 1.3.2]
-* [http://jqueryui.com/ jQuery UI 1.7.2]
-* Various plugins (see NOTICES file)
+ * [http://jquery.com/ jQuery 1.3.2]
+ * [http://jqueryui.com/ jQuery UI 1.7.2]
+ * Various plugins (see NOTICES file)
 
 == Software used on the development/test Server ==
 
