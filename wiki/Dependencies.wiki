@@ -5,16 +5,16 @@
 
 == Software and frameworks ==
 
-* [http://www.python.org/ Python 2.6.1]
-* [http://www.djangoproject.com/ Django 1.0.2]
+ * [http://www.python.org/ Python 2.6.1]
+ * [http://www.djangoproject.com/ Django 1.0.2]
 
 == Python libraries ==
 
-* [http://codespeak.net/lxml/ lxml 2.2]
-* [http://www.pythonware.com/products/pil/index.htm PIL 1.1.6]
+ * [http://codespeak.net/lxml/ lxml 2.2]
+ * [http://www.pythonware.com/products/pil/index.htm PIL 1.1.6]
 
 == Software used on the development/test Server ==
 
-* [http://www.archlinux.org/ Arch Linux]
-* [http://httpd.apache.org/ Apache HTTP Server 2.2.11]
-* [http://www.mysql.com/ MySQL 5.0.77]
+ * [http://www.archlinux.org/ Arch Linux]
+ * [http://httpd.apache.org/ Apache HTTP Server 2.2.11]
+ * [http://www.mysql.com/ MySQL 5.0.77]
