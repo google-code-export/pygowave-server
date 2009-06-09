@@ -160,8 +160,8 @@ broker running
 
 Don't quit it right now, log into another shell instead. You need to create an account on RabbitMQ for PGWS and map it to the root vhost. To do so invoke:
 {{{
-# rabbitmqctl add_user pygowave pygowave
-# rabbitmqctl map_user_vhost pygowave /
+rabbitmqctl add_user pygowave pygowave
+rabbitmqctl map_user_vhost pygowave /
 }}}
 
 Take a break and relax, you just mastered the hardest part of PGWS' installation :D
@@ -170,15 +170,15 @@ Take a break and relax, you just mastered the hardest part of PGWS' installation
 
 Now that you have set up all dependencies, checkout PGWS from Google Code:
 {{{
-$ cd /srv/http
-$ svn checkout http://pygowave-server.googlecode.com/svn/trunk/ pygowave_project
+cd /srv/http
+svn checkout http://pygowave-server.googlecode.com/svn/trunk/ pygowave_project
 }}}
 
 == Check your settings.py ==
 
 Change to PGWS' directory and open settings.py in a text editor (preferrably vim) and check all those settings. Then type:
 {{{
-$ python manage.py syncdb
+python manage.py syncdb
 }}}
 This creates all the tables used for PGWS' object model. It may also ask you to create a superuser account.
 
