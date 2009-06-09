@@ -1,0 +1,188 @@
+#summary Set up your own !PyGoWave Server
+#labels Phase-Deploy
+
+= Introduction =
+
+Although this application is not in a production-quality state at this time, you may want to run a !PyGoWave Server on your own local testing environment.
+
+!PyGoWave Server will be abbreviated PGWS in the following text.
+
+These are the installation steps I have taken to get PGWS running. While all components of PGWS are completely platform-independent, I stick to a Linux installation for now.
+
+= Step-by-Step =
+
+PGWS is powered by Django, MySQL, Apache, RabbitMQ and Orbited. Additionally some python library must be installed for proper operation.
+
+*A warning/information in advance: You will set up a localhost environment that should not be reachable from the web. If you want to do so you are advised to change all database names, usernames and passwords throughout this document for your security.*
+
+== Files and folders ==
+
+My [http://www.archlinux.org/ Linux distribution] keeps Apache's settings in /etc/httpd/conf/httpd.conf this may differ for your distribution. Apache's root folder for serving files is /srv/http and PGWS thus is installed at /srv/http/pygowave_project. If you see those paths in any settings file, make sure to check them. I consequently avoided using absolute paths in any template or script file so you should be save to just check those configs and settings files.
+
+== MySQL ==
+
+I use [http://www.mysql.com/ MySQL 5.0.77] as database backend. Install it and create a database named "pygowave". Then add a user "pygowave" with password "pygowave" and grant him all rights on the "pygowave" database.
+
+== Django ==
+
+[http://www.djangoproject.com/ Django 1.0.2] is used to serve all dynamically generated websites of PGWS plus the storage and management of PGWS data model. Just install it with a package manager of your choice or by compiling from source.
+
+== Apache ==
+
+The !PyGoWave test server runs on [http://httpd.apache.org/ Apache 2.2.11]; you will also need a current release of [http://www.modpython.org/ mod_python] or mod_wsgi. This is needed for Django to run on top of Apache.
+
+Snippet from my Apache configuration for PGWS:
+{{{
+<Location /pygowave>
+  SetHandler python-program
+  PythonHandler django.core.handlers.modpython
+  SetEnv DJANGO_SETTINGS_MODULE settings
+  PythonOption django.root /pygowave
+  PythonDebug On
+  PythonInterpreter pygowave_django
+  PythonPath "['/srv/http/pygowave_project'] + sys.path"
+</Location>
+
+Alias /pygowave/media /srv/http/pygowave_project/media
+<Location "/pygowave/media">
+  SetHandler None
+  Options Indexes FollowSymLinks
+  AllowOverride None
+  Order allow,deny
+  Allow from all
+</Location>
+}}}
+
+To enable images and styles in Django's admin interface you might also need the following lines:
+{{{
+Alias /admin/media /usr/lib/python2.6/site-packages/django/contrib/admin/media
+<Directory /usr/lib/python2.6/site-packages/django/contrib/admin/media>
+  Order allow,deny
+  Allow from all
+</Directory>
+<Location "/admin/media">
+  SetHandler None
+</Location>
+}}}
+Change paths as appropriate for your system.
+
+== Orbited ==
+
+Orbited is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its homepage.
+
+After that, set up /etc/orbited.cfg like this:
+{{{
+[global]
+reactor=epoll
+pid.location=/var/run/orbited.pid
+user=http
+group=http
+proxy.enabled=1
+
+[listen]
+http://localhost:9000
+
+[access]
+* -> localhost:61613
+
+[logging]
+debug=SCREEN,/var/orbited/debug.log
+info=SCREEN,/var/orbited/info.log
+access=SCREEN,/var/orbited/info.log
+warn=SCREEN,/var/orbited/error.log
+error=SCREEN,/var/orbited/error.log
+
+enabled.default=info,access,warn,error
+
+[loggers]
+Daemon=info,access,warn,error
+TCPConnection=info,access,warn,error
+}}}
+Change "user=" and "group=" to your Apache's user and group. This is "apache2" on some systems.
+
+== RabbitMQ ==
+
+RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.5.5.
+
+After going through normal installation, you need the rabbitmq-stomp gateway. Its best to get the code via mercurial:
+{{{
+$ hg clone http://hg.rabbitmq.com/rabbitmq-stomp -r rabbitmq_v1_5_5
+}}}
+If you don't want to install mercurial there is also this [http://hg.rabbitmq.com/rabbitmq-stomp/archive/7376596ad8a4.zip link] to a zipped version of that release.
+
+As said in the README you need to compile rabbitmq-stomp like this:
+{{{
+$ cd rabbitmq-stomp
+$ make RABBIT_SERVER_INCLUDE_DIR=/usr/lib/erlang/lib/rabbitmq_server-1.5.5/include
+$ mkdir -p /usr/lib/erlang/lib/rabbitmq-stomp
+$ cp -R * $pkgdir/usr/lib/erlang/lib/rabbitmq-stomp
+}}}
+Paths again depending on your installation.
+
+Next, set up your /etc/rabbitmq/rabbitmq.conf
+{{{
+NODENAME=rabbit
+NODE_IP_ADDRESS=0.0.0.0
+NODE_PORT=5672
+
+LOG_BASE=/var/log/rabbitmq
+MNESIA_BASE=/var/lib/rabbitmq/mnesia
+
+SERVER_START_ARGS='
+  -pa /usr/lib/erlang/lib/rabbitmq-stomp/ebin
+  -rabbit
+    stomp_listeners [{"0.0.0.0",61613}]
+    extra_startup_steps [{"STOMP-listeners",rabbit_stomp,kickstart,[]}]'
+}}}
+The last part is important for rabbitmq-stomp to work correctly.
+
+Check if everything went fine by invoking rabbitmq-server (as root). It should print something like that:
+{{{
+RabbitMQ 1.5.5 (AMQP 8-0)
+Copyright (C) 2007-2009 LShift Ltd., Cohesive Financial Technologies LLC., and Rabbit Technologies Ltd.
+Licensed under the MPL.  See http://www.rabbitmq.com/
+
+node        : rabbit@arche
+log         : /var/log/rabbitmq/rabbit.log
+sasl log    : /var/log/rabbitmq/rabbit-sasl.log
+database dir: /var/lib/rabbitmq/mnesia/rabbit
+
+starting database             ...done
+starting core processes       ...done
+starting recovery             ...done
+starting persister            ...done
+starting guid generator       ...done
+starting builtin applications ...done
+starting TCP listeners        ...done
+starting STOMP-listeners      ...done
+
+broker running
+}}}
+
+Don't quit it right now, log into another shell instead. You need to create an account on RabbitMQ for PGWS and map it to the root vhost. To do so invoke:
+{{{
+# rabbitmqctl add_user pygowave pygowave
+# rabbitmqctl map_user_vhost pygowave /
+}}}
+
+Take a break and relax, you just mastered the hardest part of PGWS' installation :D
+
+== Get !PyGoWave Server ==
+
+Now that you have set up all dependencies, checkout PGWS from Google Code:
+{{{
+$ cd /srv/http
+$ svn checkout http://pygowave-server.googlecode.com/svn/trunk/ pygowave_project
+}}}
+
+== Check your settings.py ==
+
+Change to PGWS' directory and open settings.py in a text editor (preferrably vim) and check all those settings. Then type:
+{{{
+$ python manage.py syncdb
+}}}
+This creates all the tables used for PGWS' object model. It may also ask you to create a superuser account.
+
+== You should be all set now! ==
+
+Start up Orbited, RabbitMQ and Apache. If today was your lucky day, you can access your !PyGoWave Server at http://localhost/pygowave. Have fun!
