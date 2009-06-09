@@ -111,10 +111,10 @@ If you don't want to install mercurial there is also this [http://hg.rabbitmq.co
 
 As said in the README you need to compile rabbitmq-stomp like this:
 {{{
-$ cd rabbitmq-stomp
-$ make RABBIT_SERVER_INCLUDE_DIR=/usr/lib/erlang/lib/rabbitmq_server-1.5.5/include
-$ mkdir -p /usr/lib/erlang/lib/rabbitmq-stomp
-$ cp -R * $pkgdir/usr/lib/erlang/lib/rabbitmq-stomp
+cd rabbitmq-stomp
+make RABBIT_SERVER_INCLUDE_DIR=/usr/lib/erlang/lib/rabbitmq_server-1.5.5/include
+mkdir -p /usr/lib/erlang/lib/rabbitmq-stomp
+cp -R * $pkgdir/usr/lib/erlang/lib/rabbitmq-stomp
 }}}
 Paths again depending on your installation.
 
