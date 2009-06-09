@@ -47,7 +47,6 @@ Alias /pygowave/media /srv/http/pygowave_project/media
 <Location "/pygowave/media">
   SetHandler None
   Options Indexes FollowSymLinks
-  AllowOverride None
   Order allow,deny
   Allow from all
 </Location>
