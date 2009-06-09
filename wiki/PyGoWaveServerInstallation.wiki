@@ -105,7 +105,7 @@ RabbitMQ is a huge scalable message queueing system written in Erlang. All of PG
 
 After going through normal installation, you need the rabbitmq-stomp gateway. Its best to get the code via mercurial:
 {{{
-$ hg clone http://hg.rabbitmq.com/rabbitmq-stomp -r rabbitmq_v1_5_5
+$ hg clone -r rabbitmq_v1_5_5 http://hg.rabbitmq.com/rabbitmq-stomp
 }}}
 If you don't want to install mercurial there is also this [http://hg.rabbitmq.com/rabbitmq-stomp/archive/7376596ad8a4.zip link] to a zipped version of that release.
 
