@@ -67,7 +67,7 @@ Change paths as appropriate for your system.
 
 == Orbited ==
 
-Orbited is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its homepage.
+Orbited is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its [http://orbited.org/ homepage].
 
 After that, set up /etc/orbited.cfg like this:
 {{{
