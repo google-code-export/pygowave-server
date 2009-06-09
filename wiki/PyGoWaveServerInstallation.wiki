@@ -101,7 +101,7 @@ Change "user=" and "group=" to your Apache's user and group. This is "apache2" o
 
 == RabbitMQ ==
 
-RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.5.5.
+RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.5.5. [http://www.rabbitmq.com/server.html Install it].
 
 After going through normal installation, you need the rabbitmq-stomp gateway. Its best to get the code via mercurial:
 {{{
