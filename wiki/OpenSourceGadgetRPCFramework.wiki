@@ -38,7 +38,8 @@ The Gadget RPC framework script spawns two hidden IFrames. One is called the Bro
 = How to use =
 
  * Include the gadgets-rpc script in your top window and gadgets
- * Call gadgets.rpc.init() on page load
+ * Get a copy of broker.html and delegate.html and install it on your server; make sure that the latter is on a path of the target frames URL (includes subdomain, domain and path)
+ * Call gadgets.rpc.init(delegateURL) on page load
  * Use gadgets.rpc.setupIFrame(url, domElement) to setup an IFrame (passes Broker URL and a new ID, returns the ID, saves the domElement for later use)
  * Use gadgets.rpc.disconnectIFrame(domElement _or_ id) to remove it from the internal message processing
  * For all other calls, see Google's Gadget RPC API
