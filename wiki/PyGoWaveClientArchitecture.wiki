@@ -1,0 +1,6 @@
+#summary Proposal for the PyGoWave Client Architecture
+#labels Phase-Requirements,Phase-Design
+
+= Overview =
+
+[http://pygowave-server.googlecode.com/svn/wiki/pygowave_client_arch.png]
