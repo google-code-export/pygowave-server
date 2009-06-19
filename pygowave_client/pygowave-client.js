@@ -275,6 +275,7 @@ $(document).ready(function() {
 							if (value == null)
 								delete gadgetData[key];
 						});
+						// Send out
 						stomp.send_json({
 							type: "DOCUMENT_ELEMENT_DELTA",
 							property: {
@@ -282,6 +283,8 @@ $(document).ready(function() {
 								delta: var_args
 							}
 						});
+						// Echo back
+						invokeRPCCallbacks("wave_gadget_state", gadgetData);
 						break;
 					case "wave_log":
 						logger.info("Gadget says: " + var_args);
