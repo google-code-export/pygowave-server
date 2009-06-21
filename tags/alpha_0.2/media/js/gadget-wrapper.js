@@ -57,10 +57,14 @@ gadgets.util = {
 };
 
 function _IG_Prefs(opt_moduleId) {
-	if (opt_moduleId == window.__MODULE_ID__)
+	if (opt_moduleId == undefined || opt_moduleId == window.__MODULE_ID__) {
+		this._moduleId = window.__MODULE_ID__;
 		this._prefs = gadgets._prefs;
-	else
+	}
+	else {
+		this._moduleId = opt_moduleId;
 		this._prefs = {};
+	}
 	
 	this.getArray = function (key) {
 		if (key in this._prefs) {
@@ -161,9 +165,11 @@ function _IG_Prefs(opt_moduleId) {
 	// --- setprefs ---
 	this.set = function (key, val) {
 		if (key in this._prefs)
-			this._prefs[key] = val;
+			this._prefs[key].value = val;
 		else
 			this._prefs[key] = {value: val};
+		
+		window.parent.gadget_rpc.set_pref(this._moduleId, key, val);
 	};
 	
 	this.setArray = this.set;

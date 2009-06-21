@@ -192,6 +192,14 @@ $(document).ready(function() {
 		for (var i = 0; i < messages.length; i++) {
 			var msg = messages[i];
 			
+			var gdoc = null;
+			try {
+				gdoc = $("#gadget_frame").get(0).contentDocument;
+			}
+			catch (e) {
+				gdoc = document.frames["gadget_frame"];
+			}
+			
 			switch(msg.type) {
 				case "WAVELET_ADD_PARTICIPANT":
 					if (msg.property.id == MyID)
@@ -223,14 +231,7 @@ $(document).ready(function() {
 					gadgetData = msg.property.data;
 					while (rpc_callbacks.length) rpc_callbacks.pop();
 					while (rpc_load_callbacks.length) rpc_load_callbacks.pop();
-					var loc = null;
-					try {
-						loc = $("#gadget_frame").get(0).contentDocument.location;
-					}
-					catch (e) {
-						loc = document.frames["gadget_frame"].location;
-					}
-					loc.replace(GadgetLoaderURL + "url=" + encodeURIComponent(msg.property.url) + "&gadget_id=" + msg.property.id);
+					gdoc.location.replace(GadgetLoaderURL + "url=" + encodeURIComponent(msg.property.url) + "&gadget_id=" + msg.property.id);
 					break;
 				case "DOCUMENT_ELEMENT_DELTA":
 					$.extend(gadgetData, msg.property.delta); // Apply delta
@@ -239,6 +240,13 @@ $(document).ready(function() {
 							delete gadgetData[key];
 					});
 					invokeRPCCallbacks("wave_gadget_state", gadgetData); // Callback
+					break;
+				case "DOCUMENT_ELEMENT_SETPREF":
+					if (msg.property.key in gdoc.gadgets._prefs)
+						gdoc.gadgets._prefs[msg.property.key].value = msg.property.value;
+					else
+						gdoc.gadgets._prefs[msg.property.key] = {value: msg.property.value};
+					invokeRPCCallbacks("set_pref", [msg.property.key, msg.property.value]); // Callback
 					break;
 			}
 		}
@@ -300,13 +308,26 @@ $(document).ready(function() {
 		},
 		registerOnLoadHandler: function (gadgetId, handler) {
 			rpc_load_callbacks.push({gadgetId: gadgetId, handler: handler});
+		},
+		set_pref: function (gadgetId, key, value) {
+			// Send out
+			stomp.send_json({
+				type: "DOCUMENT_ELEMENT_SETPREF",
+				property: {
+					id: gadgetId,
+					key: key,
+					value: value
+				}
+			});
 		}
 	}
 	
 	var invokeRPCCallbacks = function (serviceName, var_args) {
 		for (var i = 0; i < rpc_callbacks.length; i++) {
-			if (rpc_callbacks[i].serviceName == serviceName)
-				rpc_callbacks[i].handler(var_args);
+			if (rpc_callbacks[i].serviceName == serviceName) {
+				takethis = {a: var_args};
+				rpc_callbacks[i].handler.call(takethis, var_args);
+			}
 		}
 	};
 	var invokeOnLoadCallbacks = function () {
