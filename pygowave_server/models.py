@@ -341,6 +341,9 @@ class GadgetElement(Element):
 		prefs = self.get_userprefs()
 		prefs[key] = value
 		self.set_userprefs(prefs)
+		
+		if save:
+			self.save()
 
 	def set_userprefs(self, data):
 		"""
