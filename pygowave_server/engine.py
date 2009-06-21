@@ -221,6 +221,20 @@ class GadgetLoader:
 		
 		self.content = content[0]
 	
+	def update_prefs(self, data):
+		"""
+		Update the UserPrefs with a name:value map.
+		
+		"""
+		for key, value in data.iteritems():
+			if self.prefs.has_key(key):
+				self.prefs[key]["value"] = value
+			else:
+				self.prefs[key] = {
+					"datatype": "string",
+					"value": unicode(value)
+				}
+	
 	def prefs_json(self):
 		return simplejson.dumps(self.prefs)
 	
