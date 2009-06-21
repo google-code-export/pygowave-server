@@ -192,12 +192,12 @@ $(document).ready(function() {
 		for (var i = 0; i < messages.length; i++) {
 			var msg = messages[i];
 			
-			var gdoc = null;
+			var gwin = null;
 			try {
-				gdoc = $("#gadget_frame").get(0).contentDocument;
+				gwin = $("#gadget_frame").get(0).contentWindow;
 			}
 			catch (e) {
-				gdoc = document.frames["gadget_frame"];
+				gwin = document.frames["gadget_frame"];
 			}
 			
 			switch(msg.type) {
@@ -231,7 +231,7 @@ $(document).ready(function() {
 					gadgetData = msg.property.data;
 					while (rpc_callbacks.length) rpc_callbacks.pop();
 					while (rpc_load_callbacks.length) rpc_load_callbacks.pop();
-					gdoc.location.replace(GadgetLoaderURL + "url=" + encodeURIComponent(msg.property.url) + "&gadget_id=" + msg.property.id);
+					gwin.location.replace(GadgetLoaderURL + "url=" + encodeURIComponent(msg.property.url) + "&gadget_id=" + msg.property.id);
 					break;
 				case "DOCUMENT_ELEMENT_DELTA":
 					$.extend(gadgetData, msg.property.delta); // Apply delta
@@ -242,11 +242,11 @@ $(document).ready(function() {
 					invokeRPCCallbacks("wave_gadget_state", gadgetData); // Callback
 					break;
 				case "DOCUMENT_ELEMENT_SETPREF":
-					if (msg.property.key in gdoc.gadgets._prefs)
-						gdoc.gadgets._prefs[msg.property.key].value = msg.property.value;
+					if (msg.property.key in gwin.gadgets._prefs)
+						gwin.gadgets._prefs[msg.property.key].value = msg.property.value;
 					else
-						gdoc.gadgets._prefs[msg.property.key] = {value: msg.property.value};
-					invokeRPCCallbacks("set_pref", [msg.property.key, msg.property.value]); // Callback
+						gwin.gadgets._prefs[msg.property.key] = {value: msg.property.value};
+					invokeRPCCallbacks("set_pref", ["idontknowwhy", msg.property.key, msg.property.value]); // Callback
 					break;
 			}
 		}
