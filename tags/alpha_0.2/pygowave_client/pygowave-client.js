@@ -319,6 +319,9 @@ $(document).ready(function() {
 					value: value
 				}
 			});
+		},
+		adjustHeight: function (gadgetId, opt_height) {
+		
 		}
 	}
 	
