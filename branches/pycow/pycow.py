@@ -77,6 +77,7 @@ class PyCowContext(ast.NodeVisitor):
 		
 		self.parent = parent
 		self.identifiers = {}
+		self.variables = [] # Holds declared local variables (filled on second pass)
 		
 		self.visit_For = self.visit_body
 		self.visit_While = self.visit_body
@@ -148,6 +149,17 @@ class PyCowContext(ast.NodeVisitor):
 			return None
 		return self.parent.class_context()
 	
+	def declare_variable(self, name):
+		"""
+		Returns False if the variable is already declared and True if not.
+		
+		"""
+		if name in self.variables:
+			return False
+		else:
+			self.variables.append(name)
+			return True
+
 	def __get_docstring(self):
 		if len(self.node.body) > 0:
 			stmt = self.node.body[0]
@@ -187,6 +199,33 @@ class PyCow(ast.NodeVisitor):
 		"GtE": ">=",
 	}
 	
+	NO_SEMICOLON = [
+		"Global",
+		"If",
+		"While",
+		"For",
+	]
+	
+	RESERVED_WORDS = [
+		"null",
+		"undefined",
+		"true",
+		"false",
+		"new",
+		"var",
+		"switch",
+		"case",
+		"function",
+		"this",
+		"default",
+		"throw",
+		"delete",
+		"instanceof",
+		"typeof",
+	]
+	
+	IDENTIFIER_RE = re.compile("[A-Za-z_$][0-9A-Za-z_$]*")
+	
 	def __init__(self, outfile = None, indent = "\t"):
 		if outfile == None:
 			outfile = StringIO()
@@ -215,7 +254,7 @@ class PyCow(ast.NodeVisitor):
 		# Parse body
 		for stmt in mod.body:
 			self.visit(stmt)
-			self.__write(";\n")
+			self.__semicolon(stmt)
 			if isinstance(stmt, ast.ClassDef) or isinstance(stmt, ast.FunctionDef):
 				self.__write("\n") # Extra newline
 		self.__curr_context = None
@@ -231,12 +270,12 @@ class PyCow(ast.NodeVisitor):
 			if first:
 				first = False
 			else:
-				self.__write(" + ")
+				self.__write(" + \" \" + ")
 			self.visit(expr)
 		self.__write(")")
 	
 	def visit_Num(self, n):
-		self.__write(n.n)
+		self.__write(str(n.n))
 	
 	def visit_Str(self, s):
 		"""
@@ -250,14 +289,44 @@ class PyCow(ast.NodeVisitor):
 		self.visit(expr.value)
 	
 	def visit_Call(self, c):
+		"""
+		Translates a function/method call or class instantiation.
+		
+		"""
+		
+		cls = self.__curr_context.class_context()
+		# Check for 'super'
+		if cls != None and isinstance(c.func, ast.Name) and c.func.id == "super":
+			if len(c.args) != 2:
+				raise ParseError("`super` can only be parsed with two arguments (line %d)" % (c.lineno))
+			if not isinstance(c.args[0], ast.Name) or not isinstance(c.args[1], ast.Name):
+				raise ParseError("Arguments of `super` must be simple names, no other expressions allowed (line %d)" % (c.lineno))
+			if c.args[0].id != cls.name:
+				raise ParseError("First argument of `super` must be the current class name (line %d)" % (c.lineno))
+			if c.args[1].id != "self":
+				raise ParseError("Second argument of `super` must be `self` (line %d)" % (c.lineno))
+			self.__write("this.parent")
+			return
+		
 		type = None
 		if isinstance(c.func, ast.Name):
 			# Look in current context
 			type = getattr(self.__curr_context.lookup(c.func.id), "type", None)
 		elif isinstance(c.func, ast.Attribute):
-			if isinstance(c.func.value, ast.Name) and c.func.value.id == "self":
+			if cls != None and isinstance(c.func.value, ast.Call) and isinstance(c.func.value.func, ast.Name) and c.func.value.func.id == "super":
+				# A super call
+				if c.func.attr == "__init__":
+					# Super constructor
+					self.visit(c.func.value) # Checks for errors on the 'super' call
+					self.__write("(")
+					self.__parse_args(c)
+					self.__write(")")
+					return
+				else:
+					# Super method
+					type = getattr(cls.child(c.func.attr), "type", None)
+			elif isinstance(c.func.value, ast.Name) and c.func.value.id == "self":
 				# Look in Class context
-				cls = self.__curr_context.class_context()
 				if cls != None:
 					type = getattr(cls.child(c.func.attr), "type", None)
 			else:
@@ -289,9 +358,21 @@ class PyCow(ast.NodeVisitor):
 		"""
 		Translate an identifier. If the context is a method, substitute `self`
 		with `this`.
+		
+		Some special keywords:
+		True -> true
+		False -> false
+		None -> null
+		
 		"""
 		if self.__curr_context.type == "Method" and n.id == "self":
 			self.__write("this")
+		elif n.id == "True" or n.id == "False":
+			self.__write(n.id.lower())
+		elif n.id == "None":
+			self.__write("null")
+		elif n.id in self.RESERVED_WORDS:
+			raise ParseError("`%s` is a reserved word and cannot be used as an identifier (line %d)" % (n.id, n.lineno))
 		else:
 			self.__write(n.id)
 	
@@ -325,6 +406,25 @@ class PyCow(ast.NodeVisitor):
 		self.__write(self.__get_op(o.op))
 		self.visit(o.operand)
 	
+	def visit_Compare(self, c):
+		"""
+		Translate a compare block.
+		
+		"""
+		self.visit(c.left)
+		for i in xrange(len(c.ops)):
+			op, expr = c.ops[i], c.comparators[i]
+			self.__write(" %s " % (self.__get_op(op)))
+			self.visit(expr)
+	
+	def visit_Global(self, g):
+		"""
+		Declares variables as global.
+		
+		"""
+		for name in g.names:
+			self.__curr_context.declare_variable(name)
+	
 	def visit_Lambda(self, l):
 		"""
 		Translates a lambda function.
@@ -336,17 +436,151 @@ class PyCow(ast.NodeVisitor):
 		self.visit(l.body)
 		self.__write(";}")
 	
+	def visit_Yield(self, y):
+		"""
+		Translate the yield operator.
+		
+		"""
+		self.__write("yield ")
+		self.visit(l.value)
+	
+	def visit_Return(self, r):
+		"""
+		Translate the return statement.
+		
+		"""
+		if r.value:
+			self.__write("return ")
+			self.visit(r.value)
+		else:
+			self.__write("return")
+	
+	def visit_List(self, l):
+		"""
+		Translate a list expression.
+		
+		"""
+		self.__write("[")
+		first = True
+		for expr in l.elts:
+			if first:
+				first = False
+			else:
+				self.__write(", ")
+			self.visit(expr)
+		self.__write("]")
+	
+	def visit_Dict(self, d):
+		"""
+		Translate a dictionary expression.
+		
+		"""
+		self.__write("{")
+		self.__indent()
+		first = True
+		for i in xrange(len(d.keys)):
+			key, value = d.keys[i], d.values[i]
+			if first:
+				first = False
+				self.__write("\n")
+			else:
+				self.__write(",\n")
+			if isinstance(key, ast.Num):
+				self.__write_indented("%d: " % (key.n))
+			elif not isinstance(key, ast.Str):
+				raise ParseError("Only numbers and string literals are allowed in dictionary expressions (line %d)" % (key.lineno))
+			else:
+				if self.IDENTIFIER_RE.match(key.s):
+					self.__write_indented("%s: " % (key.s))
+				else:
+					self.__write_indented("\"%s\": " % (key.s))
+			self.visit(value)
+		self.__indent(False)
+		if len(d.keys) > 0:
+			self.__write("\n")
+			self.__do_indent()
+		self.__write("}")
+	
+	def visit_Subscript(self, s):
+		"""
+		Translate a subscript expression.
+		
+		"""
+		self.visit(s.value)
+		if isinstance(s.slice, ast.Index):
+			if isinstance(s.slice.value, ast.Str):
+				if self.IDENTIFIER_RE.match(s.slice.value.s):
+					self.__write(".%s" % (s.slice.value.s))
+					return
+			self.__write("[")
+			self.visit(s.slice.value)
+			self.__write("]")
+		elif isinstance(s.slice, ast.Slice):
+			if s.slice.step != None:
+				raise ParseError("Subscript slice stepping '%s' is not supported (line %d)" % (str(s.slice.__class__.__name__), s.lineno))
+			if isinstance(s.ctx, ast.Load):
+				self.__write(".slice(")
+				if s.slice.lower != None:
+					self.visit(s.slice.lower)
+				else:
+					self.__write("0")
+				if s.slice.upper != None:
+					self.__write(", ")
+					self.visit(s.slice.upper)
+				self.__write(")")
+			elif isinstance(s.ctx, ast.Delete):
+				raise ParseError("Subscript slice deleting is not supported (line %d)" % (s.lineno))
+			else:
+				raise ParseError("Subscript slice assignment is not supported (line %d)" % (s.lineno))
+		else:
+			raise ParseError("Subscript slice type '%s' is not supported (line %d)" % (str(s.slice.__class__.__name__), s.lineno))
+	
+	def visit_Delete(self, d):
+		"""
+		Translate a delete statement.
+		
+		"""
+		first = True
+		for target in d.targets:
+			if first:
+				first = False
+			else:
+				self.__write("; ")
+			self.__write("delete ")
+			self.visit(target)
+
 	def visit_Assign(self, a):
 		"""
 		Translate an assignment.
+		Declares a new local variable if applicable.
 		
 		"""
 		if len(a.targets) > 1:
-			self.__write("/* ERROR: Cannot handle assignment unpacking */")
-			return
+			raise ParseError("Cannot handle assignment unpacking (line %d)" % (a.lineno))
+		if isinstance(a.targets[0], ast.Name):
+			if a.targets[0].id == "var":
+				raise ParseError("`var` is a keyword in JavaScript, it cannot be used as variable name (line %d)" % (a.lineno))
+			if self.__curr_context.declare_variable(a.targets[0].id):
+				self.__write("var ")
 		self.visit(a.targets[0])
 		self.__write(" = ")
 		self.visit(a.value)
+	
+	def visit_AugAssign(self, a):
+		"""
+		Translate an assignment operator.
+		
+		"""
+		self.visit(a.target)
+		self.__write(" %s= " % (self.__get_op(a.op)))
+		self.visit(a.value)
+	
+	def visit_Pass(self, p):
+		"""
+		Translate the `pass` statement. Places a comment.
+		
+		"""
+		self.__write("/* pass */")
 	
 	def visit_Attribute(self, a):
 		"""
@@ -356,6 +590,143 @@ class PyCow(ast.NodeVisitor):
 		self.visit(a.value)
 		attr = a.attr
 		self.__write(".%s" % (attr))
+	
+	def visit_If(self, i):
+		"""
+		Translate an if-block.
+		
+		"""
+		self.__write("if (")
+		self.visit(i.test)
+		
+		# Parse body
+		if len(i.body) == 1:
+			self.__write(")\n")
+		else:
+			self.__write(") {\n")
+		
+		self.__indent()
+		for stmt in i.body:
+			self.__do_indent()
+			self.visit(stmt)
+			self.__semicolon(stmt)
+		self.__indent(False)
+		
+		if len(i.body) > 1:
+			self.__write_indented("}\n")
+		
+		# Parse else
+		if len(i.orelse) == 1:
+			self.__write_indented("else\n")
+		elif len(i.orelse) > 1:
+			self.__write_indented("else {\n")
+		
+		self.__indent()
+		for stmt in i.orelse:
+			self.__do_indent()
+			self.visit(stmt)
+			self.__semicolon(stmt)
+		self.__indent(False)
+		
+		if len(i.orelse) > 1:
+			self.__write_indented("}\n")
+	
+	def visit_While(self, w):
+		"""
+		Translate a while loop.
+		
+		"""
+		if len(w.orelse) > 0:
+			raise ParseError("`else` branches of the `while` statement are not supported (line %d)" % (w.lineno))
+		
+		self.__write("while (")
+		self.visit(w.test)
+		
+		# Parse body
+		if len(w.body) == 1:
+			self.__write(")\n")
+		else:
+			self.__write(") {\n")
+		
+		self.__indent()
+		for stmt in w.body:
+			self.__do_indent()
+			self.visit(stmt)
+			self.__semicolon(stmt)
+		self.__indent(False)
+		
+		if len(w.body) > 1:
+			self.__write_indented("}\n")
+	
+	def visit_For(self, f):
+		"""
+		Translate a for loop.
+		
+		"""
+		if len(f.orelse) > 0:
+			raise ParseError("`else` branches of the `for` statement are not supported (line %d)" % (f.lineno))
+		
+		self.__write("for (")
+		if isinstance(f.target, ast.Name):
+			if self.__curr_context.declare_variable(f.target.id):
+				self.__write("var ")
+		self.visit(f.target)
+		
+		if isinstance(f.iter, ast.Call) and isinstance(f.iter.func, ast.Name) \
+				and (f.iter.func.id == "xrange" or f.iter.func.id == "range"):
+			if len(f.iter.args) == 1:
+				self.__write(" = 0; ")
+				self.visit(f.target)
+				self.__write(" < ")
+				self.visit(f.iter.args[0])
+				self.__write("; ")
+				self.visit(f.target)
+				self.__write("++")
+			else:
+				self.__write(" = ")
+				self.visit(f.iter.args[0])
+				self.__write("; ")
+				self.visit(f.target)
+				if len(f.iter.args) == 3:
+					if not isinstance(f.iter.args[2], ast.Num):
+						raise ParseError("Only numbers allowed in step expression of the range/xrange expression in a `for` statement (line %d)" % (f.lineno))
+					if f.iter.args[2].n < 0:
+						self.__write(" > ")
+					else:
+						self.__write(" < ")
+				else:
+					self.__write(" < ")
+				self.visit(f.iter.args[1])
+				self.__write("; ")
+				self.visit(f.target)
+				if len(f.iter.args) == 3:
+					if f.iter.args[2].n < 0:
+						if f.iter.args[2].n == -1:
+							self.__write("--")
+						else:
+							self.__write(" -= %s" % (str(-f.iter.args[2].n)))
+					else:
+						self.__write(" += %s" % (str(f.iter.args[2].n)))
+				else:
+					self.__write("++")
+		else:
+			raise ParseError("Only range/xrange expression in `for` statement is supported (line %d)" % (f.lineno))
+		
+		# Parse body
+		if len(f.body) == 1:
+			self.__write(")\n")
+		else:
+			self.__write(") {\n")
+		
+		self.__indent()
+		for stmt in f.body:
+			self.__do_indent()
+			self.visit(stmt)
+			self.__semicolon(stmt)
+		self.__indent(False)
+		
+		if len(f.body) > 1:
+			self.__write_indented("}\n")
 	
 	def visit_ClassDef(self, c):
 		"""
@@ -437,16 +808,19 @@ class PyCow(ast.NodeVisitor):
 		for stmt in f.body:
 			if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Str):
 				continue # Skip docstring
+			if isinstance(stmt, ast.Global): # The `global` statement is invisible
+				self.visit(stmt)
+				continue
 			self.__do_indent()
 			self.visit(stmt)
-			self.__write(";\n")
+			self.__semicolon(stmt)
 		self.__pop_context()
 		self.__indent(False)
 		
 		self.__write_indented("}")
 	
 	def generic_visit(self, node):
-		raise ParseError("Could not parse node type '%s'" % (str(node.__class__.__name__)))
+		raise ParseError("Could not parse node type '%s' (line %d)" % (str(node.__class__.__name__), node.lineno))
 	
 	def __parse_args(self, args, strip_first = False):
 		"""
@@ -464,7 +838,7 @@ class PyCow(ast.NodeVisitor):
 				self.__write(", ")
 			self.visit(arg)
 		if getattr(args, "vararg", None) != None:
-			self.__write("/* ERROR: Variable arguments are not supported */")
+			raise ParseError("Variable arguments on function definitions are not supported")
 	
 	def __get_op(self, op):
 		"""
@@ -487,8 +861,18 @@ class PyCow(ast.NodeVisitor):
 	
 	def __write_docstring(self, s):
 		self.__out.write("/**\n")
+		gotnl = False
+		first = True
 		for line in s.split("\n"):
-			self.__write_indented(" * %s\n" % (line.strip()))
+			line = line.strip()
+			if line == "":
+				gotnl = True
+			else:
+				if gotnl and not first:
+					self.__write_indented(" *\n")
+				gotnl = False
+				first = False
+				self.__write_indented(" * %s\n" % (line))
 		self.__write_indented(" */\n")
 	
 	def __do_indent(self):
@@ -510,6 +894,18 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		self.__curr_context = self.__curr_context.parent
+	
+	def __semicolon(self, stmt, no_newline = False):
+		"""
+		Write a semicolon (and newline) for all statements except the ones
+		in NO_SEMICOLON.
+		
+		"""
+		if stmt.__class__.__name__ not in self.NO_SEMICOLON:
+			if no_newline:
+				self.__write(";")
+			else:
+				self.__write(";\n")
 
 def translate_string(input):
 	"""
