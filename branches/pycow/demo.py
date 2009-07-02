@@ -1,5 +1,5 @@
 
-# Import statements are ignored, you must look after them for yourself
+# Import statements are ignored atm, you must look after them for yourself
 
 from decorators import Implements, Class
 from utils import Events, Options
@@ -37,31 +37,6 @@ class SomeExtension(Someclass):
 		super(SomeExtension, self).a_method(otherthing) # Here it's a call to the super class' method
 		print otherthing, self.something
 
-@Implements(Options)
-@Class
-class ClassWithOptions(object):
-	"""
-	A class with implements Options using the `Implements` decorator.
-	This is MooTools functionality ported to Python.
-	"""
-	
-	# Note: In Python semantics, this declares a class-bound member, but MooTools
-	# sees this as object-bound members. Deriving from Class will convert all
-	# class-bound members to object-bound members.
-	options = {
-		"name": "value",
-		"foo": "bar",
-	}
-	
-	def __init__(self, options):
-		self.setOptions(options)
-		print self.options["foo"], self.options["name"]
-	
-	# Static methods supported
-	@staticmethod
-	def somestatic(input):
-		print "Static " + input
-
 def a_function():
 	"""
 	Docstring of function
@@ -75,13 +50,38 @@ def a_function():
 	"""
 	test = 2 # PyCow automatically declares local variables
 	test = 4 # once
-	print test+     2 # Because PyCow parses semantics only, it will ignore whitespaces (but avoid to do something like that anyways)
+	print test+    2 # Because PyCow parses semantics only, it will ignore whitespaces (but avoid to do something like that anyways)
 
 obj = Someclass("a lengthy ")
 
 obj.a_method("test") # PyCow's type inference does not include types of variables (atm)
 
 a_function() # PyCow does not put "new" here, because a_function is a simple function
+
+@Implements(Options)
+@Class
+class ClassWithOptions(object):
+	"""
+	A class with implements Options using the `Implements` decorator.
+	This is MooTools functionality ported to Python.
+	"""
+	
+	# Note: In Python semantics, this declares a class-bound member, but MooTools
+	# sees this as object-bound members. The Class decorator will convert all
+	# class-bound members to object-bound members on instantiation.
+	options = {
+		"name": "value",
+		"foo": "bar",
+	}
+	
+	def __init__(self, options):
+		self.setOptions(options)
+		print self.options["foo"], self.options["name"]
+	
+	# Static methods supported
+	@staticmethod
+	def somestatic(input):
+		print "Static " + input
 
 # Variable scope
 global x # Because of the 'global' statement
@@ -104,7 +104,7 @@ else:
 	print "You're not welcome..."
 
 i = 0
-while i < 3: # While statement
+while i < 3 and not False: # While statement
 	print i
 	i += 1 # Assignment operator
 
@@ -118,6 +118,13 @@ for j in xrange(1,4,2): # For statement (xrange; with start and step)
 	print j
 	
 for j in xrange(4,1,-1): # For statement (xrange; with start and step backwards)
+	print j
+
+i = [1,2,3]
+for j in i: # For statement (simple variable)
+	print j
+
+for j in ["a","b","c"+"d"]: # For statement (arbitrary expression)
 	print j
 
 f = lambda x: x*2 # Lambda functions

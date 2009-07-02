@@ -29,7 +29,7 @@
 # No kwargs.
 #
 
-import ast, simplejson, re
+import ast, simplejson, re, random
 from StringIO import StringIO
 
 __all__ = ["ParseError", "translate_string", "translate_file"]
@@ -237,6 +237,7 @@ class PyCow(ast.NodeVisitor):
 		self.__mod_context = None
 		self.__curr_context = None
 		self.__namespace = namespace
+		self.__iteratorid = 0
 	
 	def output(self):
 		if isinstance(self.__out, StringIO):
@@ -747,14 +748,31 @@ class PyCow(ast.NodeVisitor):
 		if len(f.orelse) > 0:
 			raise ParseError("`else` branches of the `for` statement are not supported (line %d)" % (f.lineno))
 		
+		xrange = False
+		tmp = False
+		iter = None
+		if isinstance(f.iter, ast.Call) and isinstance(f.iter.func, ast.Name) \
+				and (f.iter.func.id == "xrange" or f.iter.func.id == "range"):
+			xrange = True
+		else:
+			if isinstance(f.iter, ast.Name):
+				iter = f.iter.id
+			else:
+				tmp = True
+				iter = "__tmp_iter%d_" % (self.__iteratorid)
+				self.__iteratorid += 1
+				self.__write("var %s = " % (iter))
+				self.visit(f.iter)
+				self.__write(";\n")
+				self.__do_indent()
+		
 		self.__write("for (")
 		if isinstance(f.target, ast.Name):
 			if self.__curr_context.declare_variable(f.target.id):
 				self.__write("var ")
 		self.visit(f.target)
 		
-		if isinstance(f.iter, ast.Call) and isinstance(f.iter.func, ast.Name) \
-				and (f.iter.func.id == "xrange" or f.iter.func.id == "range"):
+		if xrange:
 			if len(f.iter.args) == 1:
 				self.__write(" = 0; ")
 				self.visit(f.target)
@@ -791,23 +809,33 @@ class PyCow(ast.NodeVisitor):
 				else:
 					self.__write("++")
 		else:
-			raise ParseError("Only range/xrange expression in `for` statement is supported (line %d)" % (f.lineno))
+			self.__write(" in " + iter)
 		
 		# Parse body
-		if len(f.body) == 1:
+		self.__indent()
+		if len(f.body) == 1 and xrange:
 			self.__write(")\n")
 		else:
 			self.__write(") {\n")
+			if not xrange:
+				self.__do_indent()
+				self.visit(f.target)
+				self.__write(" = %s[" % (iter))
+				self.visit(f.target)
+				self.__write("];\n")
 		
-		self.__indent()
 		for stmt in f.body:
 			self.__do_indent()
 			self.visit(stmt)
 			self.__semicolon(stmt)
 		self.__indent(False)
 		
-		if len(f.body) > 1:
+		if len(f.body) > 1 or not xrange:
 			self.__write_indented("}\n")
+		
+		if tmp:
+			self.__write_indented("delete %s;\n" % (iter))
+			self.__iteratorid -= 1
 	
 	def visit_ClassDef(self, c):
 		"""
