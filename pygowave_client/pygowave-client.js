@@ -138,7 +138,7 @@ $(document).ready(function() {
 			alert("Error: " + error);
 		},
 		onconnectedframe: function() {
-			this.subscribe("", {id: WaveAccessKeyRx+"-queue", exchange: "wavelet.topic", routing_key: WaveAccessKeyRx});
+			this.subscribe("", {id: WaveAccessKeyRx, exchange: "wavelet.direct", routing_key: WaveAccessKeyRx});
 			this.send_json({"pygowave": "hi"}); // Say "hi" to the server
 		},
 		onmessageframe: function(frame) {
@@ -146,11 +146,11 @@ $(document).ready(function() {
 			processMessages(obj);
 		},
 		send_json: function (obj) {
-			this.send($.toJSON(obj), WaveAccessKeyTx, {exchange: "wavelet.topic"});
+			this.send($.toJSON(obj), WaveAccessKeyTx, {exchange: "wavelet.topic", "content-type": "application/json"});
 		}
 	});
 	
-	stomp.connect("localhost", 61613, "pygowave", "pygowave");
+	stomp.connect("localhost", 61613, "pygowave_client", "pygowave_client");
 	
 	// --- PyGoWave Wire Protocol Implementation ---
 	var participants = {};
