@@ -1,7 +1,17 @@
 
+# Import statements are ignored, you must look after them for yourself
+
+from decorators import Implements, Class
+from utils import Events, Options
+
+# Use __all__ to hide classes and functions
+
+__all__ = ["Someclass", "a_function"]
+
 # Classes, subclasses and functions
 
-class Someclass:
+@Class
+class Someclass(object):
 	"""
 	Docstring of class
 	"""
@@ -16,8 +26,9 @@ class Someclass:
 	
 	def another_method(self):
 		obj = SomeExtension() # PyCow can infer types of callables (even declared later); here it will place 'new', because SomeExtension is a class
-		self.var = "test"
+		self.member = "test"
 
+@Class
 class SomeExtension(Someclass):
 	def __init__(self):
 		super(SomeExtension, self).__init__("1234") # PyCow correctly treats the 'super' function of Python; here it's the call to the super constructor
@@ -25,6 +36,31 @@ class SomeExtension(Someclass):
 	def a_method(self, otherthing):
 		super(SomeExtension, self).a_method(otherthing) # Here it's a call to the super class' method
 		print otherthing, self.something
+
+@Implements(Options)
+@Class
+class ClassWithOptions(object):
+	"""
+	A class with implements Options using the `Implements` decorator.
+	This is MooTools functionality ported to Python.
+	"""
+	
+	# Note: In Python semantics, this declares a class-bound member, but MooTools
+	# sees this as object-bound members. Deriving from Class will convert all
+	# class-bound members to object-bound members.
+	options = {
+		"name": "value",
+		"foo": "bar",
+	}
+	
+	def __init__(self, options):
+		self.setOptions(options)
+		print self.options["foo"], self.options["name"]
+	
+	# Static methods supported
+	@staticmethod
+	def somestatic(input):
+		print "Static " + input
 
 def a_function():
 	"""
@@ -41,17 +77,19 @@ def a_function():
 	test = 4 # once
 	print test+     2 # Because PyCow parses semantics only, it will ignore whitespaces (but avoid to do something like that anyways)
 
-obj = Someclass()
+obj = Someclass("a lengthy ")
 
 obj.a_method("test") # PyCow's type inference does not include types of variables (atm)
 
 a_function() # PyCow does not put "new" here, because a_function is a simple function
 
-x = "hello again"
+# Variable scope
+global x # Because of the 'global' statement
+x = "hello again" # PyCow does not declare x as local here
 
 def another_function():
-	global x # Because of the 'global' statement
-	x = "go ahead" # PyCow does not declare x as local here
+	global x
+	x = "go ahead" # and here
 	return x
 
 # Standard statements

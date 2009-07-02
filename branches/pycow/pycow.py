@@ -32,6 +32,8 @@
 import ast, simplejson, re
 from StringIO import StringIO
 
+__all__ = ["ParseError", "translate_string", "translate_file"]
+
 class ParseError(Exception):
 	"""
 	This exception is raised if the parser detects fatal errors.
@@ -226,7 +228,7 @@ class PyCow(ast.NodeVisitor):
 	
 	IDENTIFIER_RE = re.compile("[A-Za-z_$][0-9A-Za-z_$]*")
 	
-	def __init__(self, outfile = None, indent = "\t"):
+	def __init__(self, outfile = None, indent = "\t", namespace = ""):
 		if outfile == None:
 			outfile = StringIO()
 		self.__out = outfile
@@ -234,6 +236,7 @@ class PyCow(ast.NodeVisitor):
 		self.__ilevel = 0
 		self.__mod_context = None
 		self.__curr_context = None
+		self.__namespace = namespace
 	
 	def output(self):
 		if isinstance(self.__out, StringIO):
@@ -252,12 +255,78 @@ class PyCow(ast.NodeVisitor):
 		self.__mod_context = PyCowContext(mod)
 		self.__curr_context = self.__mod_context
 		# Parse body
+		if self.__namespace != "":
+			self.__write("var %s = (function() {\n" % (self.__namespace))
+			self.__indent()
+		public_identifiers = None
+		
 		for stmt in mod.body:
+			if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and \
+					isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id == "__all__":
+				if not isinstance(stmt.value, ast.List):
+					raise ParseError("Value of `__all__` must be a list expression (line %d)" % (stmt.lineno))
+				public_identifiers = []
+				for expr in stmt.value.elts:
+					if not isinstance(expr, ast.Str):
+						raise ParseError("All elements of `__all__` must be strings (line %d)" % (expr.lineno))
+					public_identifiers.append(expr.s)
+				continue
+			self.__do_indent()
 			self.visit(stmt)
 			self.__semicolon(stmt)
-			if isinstance(stmt, ast.ClassDef) or isinstance(stmt, ast.FunctionDef):
-				self.__write("\n") # Extra newline
+			self.__write("\n") # Extra newline on module layer
+		
+		if self.__namespace != "":
+			self.__write_indented("return {")
+			self.__indent()
+			if public_identifiers == None:
+				public_identifiers = self.__mod_context.identifiers.iterkeys()
+			first = True
+			for id in public_identifiers:
+				if first:
+					first = False
+					self.__write("\n")
+				else:
+					self.__write(",\n")
+				self.__write_indented("%s: %s" % (id, id))
+			self.__indent(False)
+			self.__write("\n")
+			self.__write_indented("};\n")
+			self.__indent(False)
+			self.__write_indented("})();\n")
 		self.__curr_context = None
+
+	def visit_ImportFrom(self, i):
+		"""
+		Ignored.
+		"""
+		self.__write("/* from %s import " % (i.module))
+		first = True
+		for name in i.names:
+			if first:
+				first = False
+			else:
+				self.__write(", ")
+			self.__write(name.name)
+			if name.asname:
+				self.__write(" as %s" % (name.asname))
+		self.__write(" */")
+	
+	def visit_Import(self, i):
+		"""
+		Ignored.
+		"""
+		self.__write("/* import ")
+		first = True
+		for name in i.names:
+			if first:
+				first = False
+			else:
+				self.__write(", ")
+			self.__write(name.name)
+			if name.asname:
+				self.__write(" as %s" % (name.asname))
+		self.__write(" */")
 
 	def visit_Print(self, p):
 		"""
@@ -555,15 +624,20 @@ class PyCow(ast.NodeVisitor):
 		Declares a new local variable if applicable.
 		
 		"""
+		is_class = self.__curr_context.type == "Class"
+		
 		if len(a.targets) > 1:
 			raise ParseError("Cannot handle assignment unpacking (line %d)" % (a.lineno))
 		if isinstance(a.targets[0], ast.Name):
-			if a.targets[0].id == "var":
-				raise ParseError("`var` is a keyword in JavaScript, it cannot be used as variable name (line %d)" % (a.lineno))
 			if self.__curr_context.declare_variable(a.targets[0].id):
-				self.__write("var ")
+				if not is_class: self.__write("var ")
+		elif is_class:
+			raise ParseError("Only simple variable assignments are allowed on class scope (line %d)" % (a.targets[0].id, a.lineno))
 		self.visit(a.targets[0])
-		self.__write(" = ")
+		if is_class:
+			self.__write(": ")
+		else:
+			self.__write(" = ")
 		self.visit(a.value)
 	
 	def visit_AugAssign(self, a):
@@ -572,6 +646,13 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		self.visit(a.target)
+		if isinstance(a.value, ast.Num) and a.value.n == 1:
+			if isinstance(a.op, ast.Add):
+				self.__write("++")
+				return
+			elif isinstance(a.op, ast.Sub):
+				self.__write("--")
+				return
 		self.__write(" %s= " % (self.__get_op(a.op)))
 		self.visit(a.value)
 	
@@ -744,16 +825,38 @@ class PyCow(ast.NodeVisitor):
 		self.__write("var %s = new Class({\n" % (c.name))
 		self.__indent()
 		
-		# Base classes
-		if len(c.bases) > 0:
-			self.__write_indented("Extends: ")
-			if len(c.bases) == 1:
-				self.visit(c.bases[0])
+		# Special decorators
+		decorators = self.__get_decorators(c)
+		if decorators.has_key("Implements"):
+			self.__write_indented("Implements: ")
+			if len(decorators["Implements"]) == 1:
+				self.visit(decorators["Implements"][0])
 				self.__write(",\n")
 			else:
 				self.__write("[")
 				first = True
-				for expr in c.bases:
+				for expr in decorators["Implements"]:
+					if first:
+						first = False
+					else:
+						self.__write(", ")
+					self.visit(expr)
+				self.__write("],\n")
+		if not decorators.has_key("Class"):
+			import sys
+			sys.stderr.write("Warning: The class `%s` of line %d in the input file/string does not have the `Class` decorator!\n" % (c.name, c.lineno))
+		
+		# Base classes
+		bases = filter(lambda b: not isinstance(b, ast.Name) or b.id != "object", c.bases)
+		if len(bases) > 0:
+			self.__write_indented("Extends: ")
+			if len(bases) == 1:
+				self.visit(bases[0])
+				self.__write(",\n")
+			else:
+				self.__write("[")
+				first = True
+				for expr in bases:
 					if first:
 						first = False
 					else:
@@ -762,9 +865,14 @@ class PyCow(ast.NodeVisitor):
 				self.__write("],\n")
 		
 		first = True
+		statics = []
 		for stmt in c.body:
 			if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Str):
 				continue # Skip docstring
+			if isinstance(stmt, ast.FunctionDef):
+				if self.__get_decorators(stmt).has_key("staticmethod"):
+					statics.append(stmt)
+					continue
 			if first:
 				first = False
 			else:
@@ -772,10 +880,14 @@ class PyCow(ast.NodeVisitor):
 			self.__do_indent()
 			self.visit(stmt)
 		self.__write("\n")
-		self.__pop_context()
 		self.__indent(False)
 		
-		self.__write_indented("}")
+		self.__write_indented("})")
+		for stmt in statics:
+			self.__write(";\n")
+			self.__do_indent()
+			self.visit(stmt)
+		self.__pop_context()
 	
 	def visit_FunctionDef(self, f):
 		"""
@@ -787,12 +899,18 @@ class PyCow(ast.NodeVisitor):
 		self.__push_context(f.name)
 		is_method = self.__curr_context.type == "Method"
 		
+		# Special decorators
+		decorators = self.__get_decorators(f)
+		is_static = decorators.has_key("staticmethod")
+		
 		# Write docstring
 		if len(self.__curr_context.docstring) > 0:
 			self.__write_docstring(self.__curr_context.docstring)
 			self.__do_indent()
 		if is_method:
-			if f.name == "__init__":
+			if is_static:
+				self.__write("%s.%s = function (" % (self.__curr_context.class_context().name, f.name))
+			elif f.name == "__init__":
 				self.__write("initialize: function (")
 			else:
 				self.__write("%s: function (" % (f.name))
@@ -800,7 +918,7 @@ class PyCow(ast.NodeVisitor):
 			self.__write("var %s = function (" % (f.name))
 		
 		# Parse arguments
-		self.__parse_args(f.args, is_method)
+		self.__parse_args(f.args, is_method and not is_static)
 		self.__write(") {\n")
 		
 		# Parse body
@@ -840,6 +958,31 @@ class PyCow(ast.NodeVisitor):
 		if getattr(args, "vararg", None) != None:
 			raise ParseError("Variable arguments on function definitions are not supported")
 	
+	def __get_decorators(self, stmt):
+		"""
+		Return a dictionary of decorators and their parameters.
+		
+		"""
+		decorators = {}
+		if isinstance(stmt, ast.FunctionDef):
+			for dec in stmt.decorator_list:
+				if isinstance(dec, ast.Name):
+					if dec.id == "staticmethod":
+						decorators["staticmethod"] = []
+						continue
+				raise ParseError("This function decorator is not supported. Only @staticmethod is supported for now. (line %d)" % (stmt.lineno))
+		else:
+			for dec in stmt.decorator_list:
+				if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name):
+					if dec.func.id == "Implements":
+						decorators["Implements"] = dec.args
+						continue
+				if isinstance(dec, ast.Name) and dec.id == "Class":
+					decorators["Class"] = []
+					continue
+				raise ParseError("This class decorator is not supported. Only decorators of pycow.decorators are supported (line %d)" % (stmt.lineno))
+		return decorators
+
 	def __get_op(self, op):
 		"""
 		Translates an operator.
@@ -907,24 +1050,32 @@ class PyCow(ast.NodeVisitor):
 			else:
 				self.__write(";\n")
 
-def translate_string(input):
+def translate_string(input, indent = "\t", namespace = ""):
 	"""
 	Translate a string of Python code to JavaScript.
+	Set the `indent` parameter, if you want an other indentation than tabs.
+	Set the `namespace` parameter, if you want to enclose the code in a namespace.
 	
 	"""
-	moo = PyCow()
-	moo.visit(ast.parse(input))
+	moo = PyCow(indent=indent, namespace=namespace)
+	moo.visit(ast.parse(input, "(string)"))
 	return moo.output()
 
-def translate_file(in_filename, out_filename = ""):
+def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""):
 	"""
 	Translate a Python file to JavaScript.
+	If `out_filename` is not given, it will be set to in_filename + ".js".
+	Set the `indent` parameter, if you want an other indentation than tabs.
+	Set the `namespace` parameter, if you want to enclose the code in a namespace.
 	
 	"""
-	moo = PyCow()
+	if out_filename == "":
+		out_filename = in_filename + ".js"
+	outfile = open(out_filename, "w")
+	moo = PyCow(outfile, indent, namespace)
 	input = open(in_filename, "r").read()
 	moo.visit(ast.parse(input, in_filename))
-	return moo.output()
+	outfile.close()
 
 if __name__ == "__main__":
 	import sys
@@ -932,7 +1083,37 @@ if __name__ == "__main__":
 	
 	if len(sys.argv) < 2:
 		print "=> PyCow - Python to JavaScript with MooTools translator <="
-		print "Usage: %s filename.py" % (os.path.basename(sys.argv[0]))
+		print "Usage: %s [OPTION]... filename.py" % (os.path.basename(sys.argv[0]))
+		print "Options:"
+		print " -o filename   Set the output file name (default: filename.py.js)"
+		print " -n namespace  Enclose module in namespace"
 		sys.exit()
 	
-	print translate_file(sys.argv[1])
+	in_filename = ""
+	out_filename = ""
+	namespace = ""
+	
+	i = 1
+	while i < len(sys.argv):
+		arg = sys.argv[i]
+		if arg == "-o":
+			if i+1 >= len(sys.argv):
+				print "Error parsing command line: Missing parameter for option '-o'."
+				sys.exit(1)
+			out_filename = sys.argv[i+1]
+			i += 1
+		elif arg == "-n":
+			if i+1 >= len(sys.argv):
+				print "Error parsing command line: Missing parameter for option '-n'."
+				sys.exit(1)
+			namespace = sys.argv[i+1]
+			i += 1
+		else:
+			in_filename = arg
+		i += 1
+	
+	if in_filename == "":
+		print "Error parsing command line: Missing input file."
+		sys.exit(1)
+	
+	translate_file(in_filename, out_filename, namespace=namespace)
