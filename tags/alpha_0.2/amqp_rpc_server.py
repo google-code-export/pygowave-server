@@ -25,12 +25,6 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from pygowave_server.models import Participant, Gadget, GadgetElement
 
-class TopicConsumer(Consumer):
-	exchange_type = "topic"
-
-class TopicPublisher(Publisher):
-	exchange_type = "topic"
-
 verbose = False
 quiet = False
 if "--verbose" in sys.argv:
@@ -74,7 +68,7 @@ else:
 # DOCUMENT_ELEMENT_REPLACE (sync)
 # DOCUMENT_ELEMENT_DELTA (async)
 
-class PyGoWaveMessageProcessor(Messaging):
+class PyGoWaveMessageProcessor(object):
 	"""
 	Handle all incoming messages.
 	
@@ -93,15 +87,23 @@ class PyGoWaveMessageProcessor(Messaging):
 	WAVELET_ADD_PARTICIPANT
 	
 	"""
-	queue = "wavelet_rpc_singlethread"
-	exchange = "wavelet.topic"
-	routing_key = "#.#.clientop"
-	
-	publisher_cls = TopicPublisher
-	consumer_cls = TopicConsumer
-	
 	def __init__(self, connection):
-		super(PyGoWaveMessageProcessor, self).__init__(connection, backend_cls=DefaultBackend)
+		self.consumer = Consumer(
+			connection,
+			queue="wavelet_rpc_singlethread",
+			exchange="wavelet.topic",
+			routing_key="#.#.clientop",
+			exchange_type="topic",
+			serializer="json",
+		)
+		self.consumer.register_callback(self.receive)
+		self.publisher = Publisher(
+			connection,
+			exchange="wavelet.direct",
+			exchange_type="direct",
+			delivery_mode=1,
+			serializer="json",
+		)
 		
 		self.out_queue = {}
 	
@@ -136,7 +138,7 @@ class PyGoWaveMessageProcessor(Messaging):
 		self.consumer.wait(limit)
 	
 	def send(self, message_data, routing_key):
-		self.publisher.send(message_data, routing_key=routing_key, delivery_mode=1)
+		self.publisher.send(message_data, routing_key=routing_key)
 	
 	def receive(self, message_data, message):
 		rkey = message.amqp_message.routing_key

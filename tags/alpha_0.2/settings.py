@@ -126,9 +126,10 @@ INSTALLED_APPS = (
 	'django.contrib.sites',
 	'django.contrib.admin',
 	'registration',
-	'rosetta',
 	'pygowave_server',
 	'pygowave_client',
+# Uncomment the following line for translation support with django-rosetta
+	#'rosetta',
 )
 
 AUTH_PROFILE_MODULE = 'pygowave_server.participant'
@@ -147,10 +148,15 @@ ONLINE_TIMEOUT_MINUTES = 10
 # RabbitMQ settings here
 AMQP_SERVER = "localhost"
 AMQP_PORT = 5672
-AMQP_USER = "pygowave"
-AMQP_PASSWORD = "pygowave"
+AMQP_USER = "pygowave_server"
+AMQP_PASSWORD = "pygowave_server"
 AMQP_VHOST = "/"
+
+# Credentials for public access, do not change
+AMQP_PUBLIC_USER = "pygowave_client"
+AMQP_PUBLIC_PASSWORD = "pygowave_client"
 
 # Orbited settings here
 ORBITED_SERVER = "localhost"
 ORBITED_PORT = 9000
+
