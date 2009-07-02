@@ -3,11 +3,28 @@
 
 = Introduction =
 
-Although this application is not in a production-quality state at this time, you may want to run a !PyGoWave Server on your own local testing environment.
+Although this application is not in a production-quality state at this time, you may want to run a !PyGoWave Server on your own testing environment.
 
 !PyGoWave Server will be abbreviated PGWS in the following text.
 
 These are the installation steps I have taken to get PGWS running. While all components of PGWS are completely platform-independent, I stick to a Linux installation for now.
+
+= Arch Linux service =
+
+For those of you who are also running this nifty little linux distribution, you can install all of PGWS' required packages from the main or the user repository (AUR).
+
+Packages from the main repository:
+{{{
+mysql apache django
+}}}
+
+Packages from the user repository (all except orbited are maintained by me, by the way):
+{{{
+rabbitmq rabbitmq-stomp carrot orbited
+
+Optional:
+django-rosetta
+}}}
 
 = Step-by-Step =
 
@@ -67,7 +84,7 @@ Change paths as appropriate for your system.
 
 == Orbited ==
 
-Orbited is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its [http://orbited.org/ homepage].
+Orbited 0.7.7 is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its [http://orbited.org/ homepage].
 
 After that, set up /etc/orbited.cfg like this:
 {{{
@@ -101,18 +118,26 @@ Change "user=" and "group=" to your Apache's user and group. This is "apache2" o
 
 == RabbitMQ ==
 
-RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.5.5. [http://www.rabbitmq.com/server.html Install it].
+RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.6.0.
+
+[http://www.rabbitmq.com/server.html Please install it first].
 
 After going through normal installation, you need the rabbitmq-stomp gateway. Its best to get the code via mercurial:
 {{{
-$ hg clone -r rabbitmq_v1_5_5 http://hg.rabbitmq.com/rabbitmq-stomp
+hg clone -r rabbitmq_v1_5_5 http://hg.rabbitmq.com/rabbitmq-stomp
 }}}
 If you don't want to install mercurial there is also this [http://hg.rabbitmq.com/rabbitmq-stomp/archive/7376596ad8a4.zip link] to a zipped version of that release.
+
+There is an issue concerning compatibility to RabbitMQ 1.6.0 - I have created a patch to make it work:
+{{{
+wget http://aur.archlinux.org/packages/rabbitmq-stomp/rabbitmq-stomp/rabbitmq-stomp-1.6.0.diff
+patch -Np0 < rabbitmq-stomp-1.6.0.diff
+}}}
 
 As said in the README you need to compile rabbitmq-stomp like this:
 {{{
 cd rabbitmq-stomp
-make RABBIT_SERVER_INCLUDE_DIR=/usr/lib/erlang/lib/rabbitmq_server-1.5.5/include
+make RABBIT_SERVER_INCLUDE_DIR=/usr/lib/erlang/lib/rabbitmq_server-1.6.0/include
 mkdir -p /usr/lib/erlang/lib/rabbitmq-stomp
 cp -R * /usr/lib/erlang/lib/rabbitmq-stomp
 }}}
@@ -137,7 +162,7 @@ The last part is important for rabbitmq-stomp to work correctly.
 
 Check if everything went fine by invoking rabbitmq-server (as root). It should print something like that:
 {{{
-RabbitMQ 1.5.5 (AMQP 8-0)
+RabbitMQ 1.6.0 (AMQP 8-0)
 Copyright (C) 2007-2009 LShift Ltd., Cohesive Financial Technologies LLC., and Rabbit Technologies Ltd.
 Licensed under the MPL.  See http://www.rabbitmq.com/
 
@@ -158,21 +183,33 @@ starting STOMP-listeners      ...done
 broker running
 }}}
 
-Don't quit it right now, log into another shell instead. You need to create an account on RabbitMQ for PGWS and map it to the root vhost. To do so invoke:
+Don't quit it right now, log into another shell instead. You need to create a client and server account on RabbitMQ for PGWS. To do so invoke the following commands. *Important note:* You may change the server password here for security, but do not change the client password.
 {{{
-rabbitmqctl add_user pygowave pygowave
-rabbitmqctl map_user_vhost pygowave /
+rabbitmqctl change_password guest $RANDOM$RANDOM$RANDOM
+rabbitmqctl add_user pygowave_client pygowave_client
+rabbitmqctl add_user pygowave_server pygowave_server
+rabbitmqctl set_permissions pygowave_client "^[^.]+\.[^.]+\.waveop$|^wavelet.direct$" "^[^.]+\.[^.]+\.clientop$|^wavelet.topic$" "^[^.]+\.[^.]+\.clientop$|^wavelet.direct$"
+rabbitmqctl set_permissions pygowave_server '^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$' '^wavelet_rpc_singlethread$|^wavelet\.direct$' '^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$'
 }}}
 
 Take a break and relax, you just mastered the hardest part of PGWS' installation :D
+
+== Other Python libraries ==
+
+You need to install the following Python libraries for PGWS to operate:
+ * [http://codespeak.net/lxml/ lxml 2.2]
+ * [http://www.pythonware.com/products/pil/index.htm PIL 1.1.6]
+ * [http://pypi.python.org/pypi/carrot/0.5.0 carrot 0.5.0]
 
 == Get !PyGoWave Server ==
 
 Now that you have set up all dependencies, checkout PGWS from Google Code:
 {{{
 cd /srv/http
-svn checkout http://pygowave-server.googlecode.com/svn/trunk/ pygowave_project
+svn checkout http://pygowave-server.googlecode.com/svn/tags/alpha_0.2 pygowave_project
 }}}
+
+This installs the *alpha 0.2* release. You can switch to newer releases as they become available.
 
 == Check your settings.py ==
 
@@ -184,4 +221,11 @@ This creates all the tables used for PGWS' object model. It may also ask you to 
 
 == You should be all set now! ==
 
-Start up Orbited, RabbitMQ and Apache. If today was your lucky day, you can access your !PyGoWave Server at http://localhost/pygowave. Have fun!
+Start up Orbited, RabbitMQ and Apache.
+
+Finally start up the RPC server by invoking the following command in PGWS' directory:
+{{{
+./launch-pygowave-rpc
+}}}
+
+If today was your lucky day, you can access your !PyGoWave Server at http://localhost/pygowave. Have fun!
