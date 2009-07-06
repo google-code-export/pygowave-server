@@ -228,7 +228,7 @@ class PyCow(ast.NodeVisitor):
 	
 	IDENTIFIER_RE = re.compile("[A-Za-z_$][0-9A-Za-z_$]*")
 	
-	def __init__(self, outfile = None, indent = "\t", namespace = ""):
+	def __init__(self, outfile = None, indent = "\t", namespace = "", warnings = True):
 		if outfile == None:
 			outfile = StringIO()
 		self.__out = outfile
@@ -238,6 +238,7 @@ class PyCow(ast.NodeVisitor):
 		self.__curr_context = None
 		self.__namespace = namespace
 		self.__iteratorid = 0
+		self.__warnings = warnings
 	
 	def output(self):
 		if isinstance(self.__out, StringIO):
@@ -380,8 +381,11 @@ class PyCow(ast.NodeVisitor):
 		
 		type = None
 		if isinstance(c.func, ast.Name):
-			# Look in current context
-			type = getattr(self.__curr_context.lookup(c.func.id), "type", None)
+			if c.func.id == "Hash": # Some hardcoded classes
+				type = "Class"
+			else:
+				# Look in current context
+				type = getattr(self.__curr_context.lookup(c.func.id), "type", None)
 		elif isinstance(c.func, ast.Attribute):
 			if cls != None and isinstance(c.func.value, ast.Call) and isinstance(c.func.value.func, ast.Name) and c.func.value.func.id == "super":
 				# A super call
@@ -414,7 +418,7 @@ class PyCow(ast.NodeVisitor):
 							type = ctx.type
 							break
 		
-		if type == None:
+		if type == None and self.__warnings:
 			self.__write("/* Warning: Cannot infer type of -> */ ")
 		elif type == "Class":
 			self.__write("new ")
@@ -751,41 +755,65 @@ class PyCow(ast.NodeVisitor):
 		xrange = False
 		tmp = False
 		iter = None
+		iterexpr = None
+		keyexpr = None
+		valexpr = None
+		iteritems = False
 		if isinstance(f.iter, ast.Call) and isinstance(f.iter.func, ast.Name) \
 				and (f.iter.func.id == "xrange" or f.iter.func.id == "range"):
 			xrange = True
+		if isinstance(f.iter, ast.Call) and isinstance(f.iter.func, ast.Attribute) \
+				and f.iter.func.attr == "iteritems":
+			iterexpr = f.iter.func.value
+			if not isinstance(f.target, ast.Tuple) or len(f.target.elts) != 2:
+				raise ParseError("Only 2-tuples are allowed as target in conjunction with an iteritems() call on the iterable of the `for` statement (line %d)" % (f.lineno))
+			iteritems = True
+			keyexpr = f.target.elts[0]
+			valexpr = f.target.elts[1]
 		else:
-			if isinstance(f.iter, ast.Name):
-				iter = f.iter.id
-			else:
-				tmp = True
-				iter = "__tmp_iter%d_" % (self.__iteratorid)
-				self.__iteratorid += 1
-				self.__write("var %s = " % (iter))
-				self.visit(f.iter)
-				self.__write(";\n")
-				self.__do_indent()
+			iterexpr = f.iter
+			keyexpr = f.target
+			valexpr = f.target
+		
+		if isinstance(f.target, ast.Tuple) and not iteritems:
+			raise ParseError("Tuple targets can only be used in conjunction with an iteritems() call on the iterable of the `for` statement (line %d)" % (f.lineno))
+		
+		if isinstance(iterexpr, ast.Name):
+			iter = iterexpr.id
+		elif (isinstance(iterexpr, ast.Attribute) \
+				and self.__curr_context.type == "Method" \
+				and isinstance(iterexpr.value, ast.Name) \
+				and iterexpr.value.id == "self"):
+			iter = "this.%s" % (iterexpr.attr)
+		else:
+			tmp = True
+			iter = "__tmp_iter%d_" % (self.__iteratorid)
+			self.__iteratorid += 1
+			self.__write("var %s = " % (iter))
+			self.visit(iterexpr)
+			self.__write(";\n")
+			self.__do_indent()
 		
 		self.__write("for (")
-		if isinstance(f.target, ast.Name):
-			if self.__curr_context.declare_variable(f.target.id):
+		if isinstance(keyexpr, ast.Name):
+			if self.__curr_context.declare_variable(keyexpr.id):
 				self.__write("var ")
-		self.visit(f.target)
+		self.visit(keyexpr)
 		
 		if xrange:
 			if len(f.iter.args) == 1:
 				self.__write(" = 0; ")
-				self.visit(f.target)
+				self.visit(keyexpr)
 				self.__write(" < ")
 				self.visit(f.iter.args[0])
 				self.__write("; ")
-				self.visit(f.target)
+				self.visit(keyexpr)
 				self.__write("++")
 			else:
 				self.__write(" = ")
 				self.visit(f.iter.args[0])
 				self.__write("; ")
-				self.visit(f.target)
+				self.visit(keyexpr)
 				if len(f.iter.args) == 3:
 					if not isinstance(f.iter.args[2], ast.Num):
 						raise ParseError("Only numbers allowed in step expression of the range/xrange expression in a `for` statement (line %d)" % (f.lineno))
@@ -797,7 +825,7 @@ class PyCow(ast.NodeVisitor):
 					self.__write(" < ")
 				self.visit(f.iter.args[1])
 				self.__write("; ")
-				self.visit(f.target)
+				self.visit(keyexpr)
 				if len(f.iter.args) == 3:
 					if f.iter.args[2].n < 0:
 						if f.iter.args[2].n == -1:
@@ -819,9 +847,12 @@ class PyCow(ast.NodeVisitor):
 			self.__write(") {\n")
 			if not xrange:
 				self.__do_indent()
-				self.visit(f.target)
+				if isinstance(valexpr, ast.Name):
+					if self.__curr_context.declare_variable(valexpr.id):
+						self.__write("var ")
+				self.visit(valexpr)
 				self.__write(" = %s[" % (iter))
-				self.visit(f.target)
+				self.visit(keyexpr)
 				self.__write("];\n")
 		
 		for stmt in f.body:
@@ -893,10 +924,20 @@ class PyCow(ast.NodeVisitor):
 				self.__write("],\n")
 		
 		first = True
+		first_docstring = True
 		statics = []
 		for stmt in c.body:
 			if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Str):
-				continue # Skip docstring
+				if first_docstring:
+					first_docstring = False
+				else:
+					if not first:
+						self.__write("\n")
+					self.__do_indent()
+					self.__write_docstring(stmt.value.s)
+					if not first:
+						self.__do_indent()
+				continue
 			if isinstance(stmt, ast.FunctionDef):
 				if self.__get_decorators(stmt).has_key("staticmethod"):
 					statics.append(stmt)
@@ -1078,18 +1119,18 @@ class PyCow(ast.NodeVisitor):
 			else:
 				self.__write(";\n")
 
-def translate_string(input, indent = "\t", namespace = ""):
+def translate_string(input, indent = "\t", namespace = "", warnings = True):
 	"""
 	Translate a string of Python code to JavaScript.
 	Set the `indent` parameter, if you want an other indentation than tabs.
 	Set the `namespace` parameter, if you want to enclose the code in a namespace.
 	
 	"""
-	moo = PyCow(indent=indent, namespace=namespace)
+	moo = PyCow(indent=indent, namespace=namespace, warnings=warnings)
 	moo.visit(ast.parse(input, "(string)"))
 	return moo.output()
 
-def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""):
+def translate_file(in_filename, out_filename = "", indent = "\t", namespace = "", warnings = True):
 	"""
 	Translate a Python file to JavaScript.
 	If `out_filename` is not given, it will be set to in_filename + ".js".
@@ -1100,7 +1141,7 @@ def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""
 	if out_filename == "":
 		out_filename = in_filename + ".js"
 	outfile = open(out_filename, "w")
-	moo = PyCow(outfile, indent, namespace)
+	moo = PyCow(outfile, indent, namespace, warnings)
 	input = open(in_filename, "r").read()
 	moo.visit(ast.parse(input, in_filename))
 	outfile.close()
@@ -1115,11 +1156,13 @@ if __name__ == "__main__":
 		print "Options:"
 		print " -o filename   Set the output file name (default: filename.py.js)"
 		print " -n namespace  Enclose module in namespace"
+		print " -W            Omit warning comments in output"
 		sys.exit()
 	
 	in_filename = ""
 	out_filename = ""
 	namespace = ""
+	warnings = True
 	
 	i = 1
 	while i < len(sys.argv):
@@ -1136,6 +1179,8 @@ if __name__ == "__main__":
 				sys.exit(1)
 			namespace = sys.argv[i+1]
 			i += 1
+		elif arg == "-W":
+			warnings = False
 		else:
 			in_filename = arg
 		i += 1
@@ -1144,4 +1189,4 @@ if __name__ == "__main__":
 		print "Error parsing command line: Missing input file."
 		sys.exit(1)
 	
-	translate_file(in_filename, out_filename, namespace=namespace)
+	translate_file(in_filename, out_filename, namespace=namespace, warnings=warnings)

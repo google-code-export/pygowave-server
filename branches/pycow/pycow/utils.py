@@ -22,12 +22,12 @@
 #
 
 from types import FunctionType, ClassType
-import copy
+import copy, re
 
 __all__ = ["Events", "Options"]
 
 class Events(object):
-	def addEvent(self, type, fn, internal):
+	def addEvent(self, type, fn, internal = False):
 		type = Events.removeOn(type)
 		evts = getattr(self, "$events", None)
 		if evts == None:
@@ -35,7 +35,7 @@ class Events(object):
 			setattr(self, "$events", evts)
 		if not evts.has_key(type):
 			evts[type] = set()
-		self._events[type].add(fn)
+		evts[type].add(fn)
 		if internal: fn.internal = True
 		return self
 
@@ -44,14 +44,17 @@ class Events(object):
 			self.addEvent(type, events[type])
 		return self
 
-	def fireEvent(self, type, args, delay):
+	def fireEvent(self, type, args = None, delay = None):
 		type = Events.removeOn(type)
 		evts = getattr(self, "$events", None)
 		if evts == None or not evts.has_key(type):
 			return self
 		
 		for fn in evts[type]:
-			fn(args)
+			if args != None:
+				fn(args)
+			else:
+				fn()
 			#fn.create({'bind': this, 'delay': delay, 'arguments': args})()
 		
 		return self
@@ -90,3 +93,19 @@ class Options(object):
 			self.addEvent(option, self.options[option])
 			del self.options[option]
 		return self
+
+class Hash(dict):
+	def set(self, key, value):
+		self[key] = value
+	
+	def get(self, key):
+		try:
+			return self[key]
+		except KeyError:
+			return None
+	
+	def getValues(self):
+		return self.values()
+	
+	def getKeys(self):
+		return self.keys()
