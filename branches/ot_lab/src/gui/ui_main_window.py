@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'src/gui/main_window.ui'
 #
-# Created: Mon Jul  6 19:31:23 2009
+# Created: Tue Jul  7 17:52:05 2009
 #      by: PyQt4 UI code generator 4.5.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -88,4 +88,5 @@ class Ui_MainWindow(object):
         self.actionNext_window.setText(QtGui.QApplication.translate("MainWindow", "&Next window", None, QtGui.QApplication.UnicodeUTF8))
         self.actionPrevious_window.setText(QtGui.QApplication.translate("MainWindow", "&Previous window", None, QtGui.QApplication.UnicodeUTF8))
         self.actionAdd_user.setText(QtGui.QApplication.translate("MainWindow", "&Add user", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionAdd_user.setShortcut(QtGui.QApplication.translate("MainWindow", "Ctrl+A", None, QtGui.QApplication.UnicodeUTF8))
 

@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>592</width>
-    <height>477</height>
+    <width>508</width>
+    <height>570</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>User &quot;NoName&quot;</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_4">
+  <layout class="QVBoxLayout" name="verticalLayout_5">
    <item>
     <widget class="QSplitter" name="splitter">
      <property name="orientation">
@@ -29,7 +29,7 @@
          <property name="minimumSize">
           <size>
            <width>0</width>
-           <height>220</height>
+           <height>180</height>
           </size>
          </property>
          <property name="palette">
@@ -113,8 +113,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>566</width>
-            <height>220</height>
+            <width>482</width>
+            <height>180</height>
            </rect>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout">
@@ -129,13 +129,13 @@
              <property name="minimumSize">
               <size>
                <width>0</width>
-               <height>200</height>
+               <height>160</height>
               </size>
              </property>
              <property name="maximumSize">
               <size>
                <width>16777215</width>
-               <height>200</height>
+               <height>160</height>
               </size>
              </property>
             </widget>
@@ -192,6 +192,16 @@
        </item>
       </layout>
      </widget>
+     <widget class="QGroupBox" name="groupBox_3">
+      <property name="title">
+       <string>Pending Operations</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_4">
+       <item>
+        <widget class="QTableView" name="tblPending"/>
+       </item>
+      </layout>
+     </widget>
      <widget class="QGroupBox" name="groupBox_2">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
@@ -204,7 +214,7 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
        <item>
-        <widget class="QTableView" name="tblOperations"/>
+        <widget class="QTableView" name="tblCached"/>
        </item>
       </layout>
      </widget>

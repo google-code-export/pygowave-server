@@ -101,6 +101,9 @@
    <property name="text">
     <string>&amp;Add user</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
   </action>
  </widget>
  <resources/>

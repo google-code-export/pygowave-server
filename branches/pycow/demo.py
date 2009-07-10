@@ -127,6 +127,9 @@ for j in i: # For statement (simple variable)
 for j in ["a","b","c"+"d"]: # For statement (arbitrary expression)
 	print j
 
+for key, value in {"a": 1, "b": 2}.iteritems(): # For statement (dictionary)
+	print key, value
+
 f = lambda x: x*2 # Lambda functions
 
 a = [1,2,3,f(2)] # List expression
@@ -151,3 +154,6 @@ print b[1]
 
 # Deleting from map
 del b["a"]
+
+# Modulo operator on strings, i.e. sprintf
+print "Demo %d %s %.2f" % (b["-test-"], "abc", 0.123456)

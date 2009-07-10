@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>595</width>
-    <height>329</height>
+    <height>392</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -35,7 +35,7 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <widget class="QTableWidget" name="tblDeltas"/>
+        <widget class="QTableView" name="tblDeltas"/>
        </item>
       </layout>
      </widget>
