@@ -188,6 +188,8 @@ class PyCow(ast.NodeVisitor):
 		"BitAnd": "&",
 		"FloorDiv": "/",
 		
+		"USub": "-",
+		
 		"And": "&&",
 		"Or": "||",
 		
@@ -335,15 +337,23 @@ class PyCow(ast.NodeVisitor):
 		Translate `print` to `alert()`.
 		
 		"""
-		self.__write("alert(")
+		if len(p.values) == 1:
+			self.__write("alert(repr(")
+			self.visit(p.values[0])
+			self.__write("))")
+			return
+		
+		self.__write("alert(\"")
+		self.__write(" ".join(["%s"] * len(p.values)))
+		self.__write("\".sprintf(repr(")
 		first = True
 		for expr in p.values:
 			if first:
 				first = False
 			else:
-				self.__write(" + \" \" + ")
+				self.__write("), repr(")
 			self.visit(expr)
-		self.__write(")")
+		self.__write(")))")
 	
 	def visit_Num(self, n):
 		self.__write(str(n.n))
@@ -355,9 +365,6 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		self.__write(simplejson.dumps(s.s))
-
-	def visit_Expr(self, expr):
-		self.visit(expr.value)
 	
 	def visit_Call(self, c):
 		"""
@@ -450,14 +457,31 @@ class PyCow(ast.NodeVisitor):
 		else:
 			self.__write(n.id)
 	
+	def visit_Expr(self, expr):
+		self.visit(expr.value)
+	
 	def visit_BinOp(self, o):
 		"""
 		Translates a binary operator.
+		Note: The modulo operator on strings is translated to left.sprintf(right)
+		and currently the only spot where tuples are allowed.
 		
 		"""
-		self.visit(o.left)
-		self.__write(" %s " % (self.__get_op(o.op)))
-		self.visit(o.right)
+		if isinstance(o.left, ast.Str) and isinstance(o.op, ast.Mod) and isinstance(o.right, ast.Tuple):
+			self.visit(o.left)
+			self.__write(".sprintf(")
+			first = True
+			for elt in o.right.elts:
+				if first:
+					first = False
+				else:
+					self.__write(", ")
+				self.visit(elt)
+			self.__write(")")
+		else:
+			self.visit(o.left)
+			self.__write(" %s " % (self.__get_op(o.op)))
+			self.visit(o.right)
 	
 	def visit_BoolOp(self, o):
 		"""
@@ -785,7 +809,7 @@ class PyCow(ast.NodeVisitor):
 				and isinstance(iterexpr.value, ast.Name) \
 				and iterexpr.value.id == "self"):
 			iter = "this.%s" % (iterexpr.attr)
-		else:
+		elif not xrange:
 			tmp = True
 			iter = "__tmp_iter%d_" % (self.__iteratorid)
 			self.__iteratorid += 1
