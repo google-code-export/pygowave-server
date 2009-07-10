@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'src/gui/server_window.ui'
 #
-# Created: Mon Jul  6 19:40:42 2009
+# Created: Tue Jul  7 20:50:22 2009
 #      by: PyQt4 UI code generator 4.5.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,7 +12,7 @@ from PyQt4 import QtCore, QtGui
 class Ui_ServerWindow(object):
     def setupUi(self, ServerWindow):
         ServerWindow.setObjectName("ServerWindow")
-        ServerWindow.resize(595, 329)
+        ServerWindow.resize(595, 392)
         self.verticalLayout = QtGui.QVBoxLayout(ServerWindow)
         self.verticalLayout.setObjectName("verticalLayout")
         self.splitter = QtGui.QSplitter(ServerWindow)
@@ -31,10 +31,8 @@ class Ui_ServerWindow(object):
         self.groupBox_2.setObjectName("groupBox_2")
         self.verticalLayout_2 = QtGui.QVBoxLayout(self.groupBox_2)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.tblDeltas = QtGui.QTableWidget(self.groupBox_2)
+        self.tblDeltas = QtGui.QTableView(self.groupBox_2)
         self.tblDeltas.setObjectName("tblDeltas")
-        self.tblDeltas.setColumnCount(0)
-        self.tblDeltas.setRowCount(0)
         self.verticalLayout_2.addWidget(self.tblDeltas)
         self.verticalLayout.addWidget(self.splitter)
 

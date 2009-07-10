@@ -74,23 +74,60 @@ class Operation(object):
 		self.blip_id = blip_id
 		self.index = index
 		self.property = prop
+		
+	def indexMove(self):
+		"""
+		Return how much a concurrent operation's index must be moved to include
+		the effects of this operation.
+		
+		"""
+		if self.type == DOCUMENT_INSERT:
+			return len(self.property)
+		elif self.type == DOCUMENT_DELETE:
+			return -self.property
+		return 0
+	
+	def serialize(self):
+		"""
+		Serialize this operation into a dictionary.
+		
+		"""
+		return {
+			"type": self.type,
+			"wave_id": self.wave_id,
+			"wavelet_id": self.wavelet_id,
+			"blip_id": self.blip_id,
+			"index": self.index,
+			"property": self.property,
+		}
+
+	def __repr__(self):
+		return "%s(\"%s\",%d,%s)" % (self.type.lower(), self.blip_id, self.index, repr(self.property))
+
+	@staticmethod
+	def unserialize(obj):
+		"""
+		Unserialize an operation from a dictionary.
+		
+		"""
+		return Operation(obj["type"], obj["wave_id"], obj["wavelet_id"], obj["blip_id"], obj["index"], obj["property"])
 
 @Implements(Events)
 @Class
-class OpBuilder(object):
+class OpManager(object):
 	"""
-	Wraps all currently supportable operations as functions.
+	Manages operations: Creating, merging, transforming, serializing.
 	
-	The operation builder wraps single operations as functions and generates
-	operations in-order. It keeps a list of operations and allows transformation
-	and merging.
+	The operation manager wraps single operations as functions and generates
+	operations in-order. It keeps a list of operations and allows
+	transformation, merging and serializing.
 	
-	An OpBuilder is always associated with exactly one wave/wavelet.
+	An OpManager is always associated with exactly one wave/wavelet.
 	"""
 	
 	def __init__(self, wave_id, wavelet_id):
 		"""
-		Initializes the op builder with a wave and wavelet ID.
+		Initializes the op manager with a wave and wavelet ID.
 		
 		Args:
 		  wave_id: The ID of the wave.
@@ -100,11 +137,111 @@ class OpBuilder(object):
 		self.wavelet_id = wavelet_id
 		self.operations = []
 
-	def transform(self, op):
+	def isEmpty(self):
 		"""
-		Transform the operations list on behalf of another operation (which has
-		happened before this operation).
+		Return true if this manager is not holding operations.
 		"""
+		return len(self.operations) == 0
+
+	def transform(self, other_op, outgoing):
+		"""
+		Transform the operations list on behalf of another operation.
+		"""
+		
+		# myop: incoming operation
+		# other_op: operation on cache (client) / local store (server)
+		
+		for i in xrange(len(self.operations)):
+			myop = self.operations[i]
+			if OpManager.transformSingle(myop, other_op, outgoing):
+				self.fireEvent("operationTransformed", {"index": i})
+	
+	@staticmethod
+	def transformSingle(op, other_op, outgoing):
+		"""
+		Transform a single operation on behalf of another operation.
+		Returns true, if the operation was transformed.
+		
+		"""
+		if op.blip_id == other_op.blip_id and op.index != -1 and other_op.index != -1:
+			moveit = False
+			if op.index > other_op.index:
+				moveit = True
+			elif op.index == other_op.index:
+				if outgoing and (op.type != DOCUMENT_INSERT or other_op.type != DOCUMENT_DELETE):
+					moveit = True
+				if not outgoing and op.type == DOCUMENT_DELETE:
+					moveit = True
+				if op.type == DOCUMENT_DELETE and other_op.type == DOCUMENT_DELETE:
+					moveit = False
+				#print outgoing, op, other_op, moveit
+			if moveit: # Index moves
+				op.index += other_op.indexMove()
+				return True
+		return False
+
+	def transformByManager(self, manager, outgoing):
+		"""
+		Transform the operations list on behalf of another manager.
+		"""
+		for op in manager.operations:
+			self.transform(op, outgoing)
+
+	def fetch(self):
+		"""
+		Returns the pending operations and removes them from this manager.
+		"""
+		ops = self.operations
+		self.fireEvent("beforeOperationsRemoved", {"start": 0, "end": len(ops)-1})
+		self.operations = []
+		self.fireEvent("afterOperationsRemoved", {"start": 0, "end": len(ops)-1})
+		return ops
+	
+	def put(self, ops):
+		"""
+		Opposite of fetch. Inserts all given operations into this manager.
+		"""
+		if len(ops) == 0:
+			return
+		start = len(self.operations)
+		end = start + len(ops) - 1
+		self.fireEvent("beforeOperationsInserted", {"start": start, "end": end})
+		self.operations.extend(ops)
+		self.fireEvent("afterOperationsInserted", {"start": start, "end": end})
+
+	def serialize(self, fetch):
+		"""
+		Serialize this manager's operations into a list of dictionaries.
+		Set fetch to true to also clear this manager.
+		
+		"""
+		if fetch:
+			ops = self.fetch()
+		else:
+			ops = self.operations
+		
+		out = []
+		
+		for op in ops:
+			out.append(op.serialize())
+		
+		return out
+	
+	def unserialize(self, serial_ops):
+		"""
+		Unserialize a list of dictionaries to operations and add them to this
+		manager.
+		
+		"""
+		
+		ops = []
+		
+		for op in serial_ops:
+			ops.append(Operation.unserialize(op))
+		
+		self.put(ops)
+
+	# --------------------------------------------------------------------------
 
 	def documentInsert(self, blip_id, index, content):
 		"""
@@ -140,16 +277,6 @@ class OpBuilder(object):
 			DOCUMENT_DELETE,
 			self.wave_id, self.wavelet_id, blip_id,
 			start,
-			end
+			end-start # = length
 		))
 		self.fireEvent("afterOperationsInserted", {"start": at, "end": at})
-	
-	def fetch(self):
-		"""
-		Returns the pending operations and removes them from this builder.
-		"""
-		ops = self.operations
-		self.fireEvent("beforeOperationsRemoved", {"start": 0, "end": len(ops)-1})
-		self.operations = []
-		self.fireEvent("afterOperationsRemoved", {"start": 0, "end": len(ops)-1})
-		return ops

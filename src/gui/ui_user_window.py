@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'src/gui/user_window.ui'
 #
-# Created: Mon Jul  6 23:37:04 2009
+# Created: Wed Jul  8 10:29:02 2009
 #      by: PyQt4 UI code generator 4.5.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,9 +12,9 @@ from PyQt4 import QtCore, QtGui
 class Ui_UserWindow(object):
     def setupUi(self, UserWindow):
         UserWindow.setObjectName("UserWindow")
-        UserWindow.resize(592, 477)
-        self.verticalLayout_4 = QtGui.QVBoxLayout(UserWindow)
-        self.verticalLayout_4.setObjectName("verticalLayout_4")
+        UserWindow.resize(508, 570)
+        self.verticalLayout_5 = QtGui.QVBoxLayout(UserWindow)
+        self.verticalLayout_5.setObjectName("verticalLayout_5")
         self.splitter = QtGui.QSplitter(UserWindow)
         self.splitter.setOrientation(QtCore.Qt.Vertical)
         self.splitter.setObjectName("splitter")
@@ -23,7 +23,7 @@ class Ui_UserWindow(object):
         self.verticalLayout_2 = QtGui.QVBoxLayout(self.groupBox)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.blipArea = QtGui.QScrollArea(self.groupBox)
-        self.blipArea.setMinimumSize(QtCore.QSize(0, 220))
+        self.blipArea.setMinimumSize(QtCore.QSize(0, 180))
         palette = QtGui.QPalette()
         brush = QtGui.QBrush(QtGui.QColor(255, 255, 255))
         brush.setStyle(QtCore.Qt.SolidPattern)
@@ -50,7 +50,7 @@ class Ui_UserWindow(object):
         self.blipArea.setWidgetResizable(True)
         self.blipArea.setObjectName("blipArea")
         self.scrollAreaWidgetContents = QtGui.QWidget(self.blipArea)
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 566, 220))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 482, 180))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.verticalLayout = QtGui.QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -60,8 +60,8 @@ class Ui_UserWindow(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.rootBlip.sizePolicy().hasHeightForWidth())
         self.rootBlip.setSizePolicy(sizePolicy)
-        self.rootBlip.setMinimumSize(QtCore.QSize(0, 200))
-        self.rootBlip.setMaximumSize(QtCore.QSize(16777215, 200))
+        self.rootBlip.setMinimumSize(QtCore.QSize(0, 160))
+        self.rootBlip.setMaximumSize(QtCore.QSize(16777215, 160))
         self.rootBlip.setObjectName("rootBlip")
         self.verticalLayout.addWidget(self.rootBlip)
         spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
@@ -81,6 +81,13 @@ class Ui_UserWindow(object):
         self.cmdReply.setObjectName("cmdReply")
         self.horizontalLayout.addWidget(self.cmdReply)
         self.verticalLayout_2.addWidget(self.widget)
+        self.groupBox_3 = QtGui.QGroupBox(self.splitter)
+        self.groupBox_3.setObjectName("groupBox_3")
+        self.verticalLayout_4 = QtGui.QVBoxLayout(self.groupBox_3)
+        self.verticalLayout_4.setObjectName("verticalLayout_4")
+        self.tblPending = QtGui.QTableView(self.groupBox_3)
+        self.tblPending.setObjectName("tblPending")
+        self.verticalLayout_4.addWidget(self.tblPending)
         self.groupBox_2 = QtGui.QGroupBox(self.splitter)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -90,10 +97,10 @@ class Ui_UserWindow(object):
         self.groupBox_2.setObjectName("groupBox_2")
         self.verticalLayout_3 = QtGui.QVBoxLayout(self.groupBox_2)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
-        self.tblOperations = QtGui.QTableView(self.groupBox_2)
-        self.tblOperations.setObjectName("tblOperations")
-        self.verticalLayout_3.addWidget(self.tblOperations)
-        self.verticalLayout_4.addWidget(self.splitter)
+        self.tblCached = QtGui.QTableView(self.groupBox_2)
+        self.tblCached.setObjectName("tblCached")
+        self.verticalLayout_3.addWidget(self.tblCached)
+        self.verticalLayout_5.addWidget(self.splitter)
 
         self.retranslateUi(UserWindow)
         QtCore.QMetaObject.connectSlotsByName(UserWindow)
@@ -103,5 +110,6 @@ class Ui_UserWindow(object):
         self.groupBox.setTitle(QtGui.QApplication.translate("UserWindow", "Blips", None, QtGui.QApplication.UnicodeUTF8))
         self.lblVersion.setText(QtGui.QApplication.translate("UserWindow", "v0", None, QtGui.QApplication.UnicodeUTF8))
         self.cmdReply.setText(QtGui.QApplication.translate("UserWindow", "Reply", None, QtGui.QApplication.UnicodeUTF8))
+        self.groupBox_3.setTitle(QtGui.QApplication.translate("UserWindow", "Pending Operations", None, QtGui.QApplication.UnicodeUTF8))
         self.groupBox_2.setTitle(QtGui.QApplication.translate("UserWindow", "Cached Operations", None, QtGui.QApplication.UnicodeUTF8))
 
