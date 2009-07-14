@@ -2,7 +2,7 @@
 # Import statements are ignored atm, you must look after them for yourself
 
 from decorators import Implements, Class
-from utils import Events, Options
+from utils import Events, Options, Hash
 
 # Use __all__ to hide classes and functions
 
@@ -162,3 +162,7 @@ print "Demo %d %s %.2f" % (b["-test-"], "abc", 0.123456)
 print (1 > 2 > 4) - (2 * 3)
 print 1 * (2 + 4) * -(1 + 2)
 print (True and True) and False or False
+
+# isinstance
+print isinstance([], list)
+print isinstance(Hash(), Hash)

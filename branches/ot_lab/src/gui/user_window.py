@@ -134,32 +134,22 @@ class UserWindow(QWidget, Ui_UserWindow):
 		if version != self.__version + 1:
 			QMessageBox.warning(self, "Error", "Version went out of sync (%d -> %d)!" % (self.__version, version))
 		
+		# Transform and apply
 		for op in ops:
-			# Split by incoming
-			self.opsCache.split(op)
-			self.opsPending.split(op)
-			
-			# Transform incoming
-			self.opsPending.reverseTransform(op, False)
-			self.opsCache.reverseTransform(op, False)
-			
-			# Apply
-			if not op.isNull():
-				if op.type == DOCUMENT_INSERT:
-					cur = self.rootBlip.textCursor()
-					cur.movePosition(QTextCursor.Start)
-					cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
-					cur.insertText(op.property)
-				elif op.type == DOCUMENT_DELETE:
-					cur = self.rootBlip.textCursor()
-					cur.movePosition(QTextCursor.Start)
-					cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
-					cur.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, op.property)
-					cur.removeSelectedText()
-			
-			# Transform cache/pending
-			self.opsCache.transform(op, True)
-			self.opsPending.transform(op, True)
+			for op in self.opsPending.transform(op):
+				for op in self.opsCache.transform(op):
+					if op.isNull(): continue
+					if op.type == DOCUMENT_INSERT:
+						cur = self.rootBlip.textCursor()
+						cur.movePosition(QTextCursor.Start)
+						cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
+						cur.insertText(op.property)
+					elif op.type == DOCUMENT_DELETE:
+						cur = self.rootBlip.textCursor()
+						cur.movePosition(QTextCursor.Start)
+						cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
+						cur.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, op.property)
+						cur.removeSelectedText()
 		
 		self.__applying = False
 		self.__version = version

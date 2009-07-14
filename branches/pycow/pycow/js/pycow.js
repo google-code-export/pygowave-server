@@ -43,6 +43,25 @@ repr = function (obj) {
 		return JSON.encode(obj);
 };
 
+range = function (start, stop, step) {
+	if (!$defined(stop)) {
+		stop = start;
+		start = 0;
+	}
+	if (!$defined(step) || step == 0)
+		step = 1;
+	out = new Array();
+	if (step > 0) {
+		for (var i = start; i < stop; i += step)
+			out.push(i);
+	}
+	else {
+		for (var i = start; i > stop; i += step)
+			out.push(i);
+	}
+	return out;
+};
+
 /*  
  *  Javascript sprintf
  *  http://www.webtoolkit.info/
@@ -198,3 +217,71 @@ Array.prototype.pop = function (index) {
 	this.splice(index, 1);
 	return elt;
 };
+
+if (!$defined(window.StopIteration)) {
+	StopIteration = function () {};
+	StopIteration.prototype = new Error;
+	NewStopIteration = function () {return new StopIteration};
+}
+else {
+	NewStopIteration = function () {return StopIteration};
+}
+
+_Iterator = new Class({
+	initialize: function (object) {
+		this.obj = object;
+		this.pos = -1;
+		if (object instanceof Array)
+			this.elts = null;
+		else {
+			this.elts = new Array();
+			for (var x in object) {
+				if (object.hasOwnProperty(x))
+					this.elts.push(x);
+			}
+		}
+	},
+	next: function () {
+		this.pos++;
+		if (this.elts == null) {
+			if (this.pos >= this.obj.length)
+				throw NewStopIteration();
+			return this.obj[this.pos];
+		}
+		else {
+			if (this.pos >= this.elts.length)
+				throw NewStopIteration();
+			return this.obj[this.elts[this.pos]];
+		}
+	},
+	key: function () {
+		if (this.elts == null)
+			return this.pos;
+		else {
+			if (this.pos >= this.elts.length)
+				throw NewStopIteration();
+			return this.elts[this.pos];
+		}
+	}
+});
+
+XRange = new Class({
+	initialize: function (start, stop, step) {
+		if (!$defined(stop)) {
+			stop = start;
+			start = 0;
+		}
+		if (!$defined(step) || step == 0)
+			step = 1;
+		this.start = start;
+		this.stop = stop;
+		this.step = step;
+	},
+	next: function () {
+		if ((this.step > 0 && this.start >= this.stop) || (this.step < 0 && this.start <= this.stop))
+			throw NewStopIteration();
+		var ret = this.start;
+		this.start += this.step;
+		return ret;
+	}
+});
