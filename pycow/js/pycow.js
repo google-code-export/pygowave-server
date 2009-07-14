@@ -181,3 +181,20 @@ String.implement({
 });
 
 String.alias("toLowerCase", "lower");
+
+Array.implement({
+	insert: function (index, object) {
+		this.splice(index, 0, object);
+	}
+});
+
+Array.prototype.pop = function (index) {
+	if (!$defined(index))
+		index = this.length-1;
+
+	if (index == -1 || index >= this.length)
+		return undefined;
+	var elt = this[index];
+	this.splice(index, 1);
+	return elt;
+};

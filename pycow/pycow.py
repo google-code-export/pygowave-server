@@ -175,32 +175,33 @@ class PyCow(ast.NodeVisitor):
 	
 	"""
 	OP_MAP = {
-		"Add": "+",
-		"Sub": "-",
-		"Mult": "*",
-		"Div": "/",
-		"Mod": "%",
-		"Pow": "^",
-		"LShift": "<<",
-		"RShift": ">>",
-		"BitOr": "|",
-		"BitXor": "^",
-		"BitAnd": "&",
-		"FloorDiv": "/",
+		"Add":	("+", 6, True), # chars, precedence, associates
+		"Sub":	("-", 6, True),
+		"Mult":	("*", 5, True),
+		"Div":	("/", 5, True),
+		"FloorDiv":	("/", 5, True),
+		"Mod":	("%", 5, True),
+		#"Pow":	?,
+		"LShift":	("<<", 7, True),
+		"RShift":	(">>", 7, True),
+		"BitOr":	("|", 12, True),
+		"BitXor":	("^", 11, True),
+		"BitAnd":	("&", 10, True),
 		
-		"USub": "-",
+		"USub":	("-", 4, False),
+		"UAdd": ("+", 4, False),
 		
-		"And": "&&",
-		"Or": "||",
+		"And":	("&&", 13, True),
+		"Or":	("||", 14, True),
 		
-		"Not": "!",
+		"Not":	("!", 4, False),
 		
-		"Eq": "==",
-		"NotEq": "!=",
-		"Lt": "<",
-		"LtE": "<=",
-		"Gt": ">",
-		"GtE": ">=",
+		"Eq":	("==", 9, True),
+		"NotEq":("!=", 9, True),
+		"Lt":	("<", 8, True),
+		"LtE":	("<=", 8, True),
+		"Gt":	(">", 8, True),
+		"GtE":	(">=", 8, True),
 	}
 	
 	NO_SEMICOLON = [
@@ -388,8 +389,10 @@ class PyCow(ast.NodeVisitor):
 		
 		type = None
 		if isinstance(c.func, ast.Name):
-			if c.func.id == "Hash": # Some hardcoded classes
+			if c.func.id == "Hash": # Some hardcoded classes/functions
 				type = "Class"
+			elif c.func.id == "len" or c.func.id == "repr":
+				type = "Function"
 			else:
 				# Look in current context
 				type = getattr(self.__curr_context.lookup(c.func.id), "type", None)
@@ -479,9 +482,13 @@ class PyCow(ast.NodeVisitor):
 				self.visit(elt)
 			self.__write(")")
 		else:
+			chars, prec, assoc = self.__get_op_cpa(o.op)
 			self.visit(o.left)
-			self.__write(" %s " % (self.__get_op(o.op)))
+			self.__write(" %s " % (chars))
+			eprec, eassoc = self.__get_expr_pa(o.right)
+			if eprec >= prec: self.__write("(")
 			self.visit(o.right)
+			if eprec >= prec: self.__write(")")
 	
 	def visit_BoolOp(self, o):
 		"""
@@ -489,12 +496,16 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		first = True
+		chars, prec, assoc = self.__get_op_cpa(o.op)
 		for expr in o.values:
 			if first:
 				first = False
 			else:
 				self.__write(" %s " % (self.__get_op(o.op)))
+			eprec, eassoc = self.__get_expr_pa(expr)
+			if eprec >= prec: self.__write("(")
 			self.visit(expr)
+			if eprec >= prec: self.__write(")")
 	
 	def visit_UnaryOp(self, o):
 		"""
@@ -502,7 +513,11 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		self.__write(self.__get_op(o.op))
+		prec, assoc = self.__get_expr_pa(o.operand)
+		if isinstance(o.operand, ast.Num): prec = 3
+		if prec > 2: self.__write("(")
 		self.visit(o.operand)
+		if prec > 2: self.__write(")")
 	
 	def visit_Compare(self, c):
 		"""
@@ -513,7 +528,10 @@ class PyCow(ast.NodeVisitor):
 		for i in xrange(len(c.ops)):
 			op, expr = c.ops[i], c.comparators[i]
 			self.__write(" %s " % (self.__get_op(op)))
+			prec, assoc = self.__get_expr_pa(expr)
+			if prec > 2: self.__write("(")
 			self.visit(expr)
+			if prec > 2: self.__write(")")
 	
 	def visit_Global(self, g):
 		"""
@@ -741,6 +759,17 @@ class PyCow(ast.NodeVisitor):
 		if len(i.orelse) > 1:
 			self.__write_indented("}\n")
 	
+	def visit_IfExp(self, i):
+		"""
+		Translate an if-expression.
+		
+		"""
+		self.visit(i.test)
+		self.__write(" ? ")
+		self.visit(i.body)
+		self.__write(" : ")
+		self.visit(i.orelse)
+		
 	def visit_While(self, w):
 		"""
 		Translate a while loop.
@@ -1014,8 +1043,11 @@ class PyCow(ast.NodeVisitor):
 		self.__parse_args(f.args, is_method and not is_static)
 		self.__write(") {\n")
 		
-		# Parse body
+		# Parse defaults
 		self.__indent()
+		self.__parse_defaults(f.args)
+		
+		# Parse body
 		for stmt in f.body:
 			if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Str):
 				continue # Skip docstring
@@ -1051,6 +1083,22 @@ class PyCow(ast.NodeVisitor):
 		if getattr(args, "vararg", None) != None:
 			raise ParseError("Variable arguments on function definitions are not supported")
 	
+	def __parse_defaults(self, args):
+		"""
+		Translate the default arguments list.
+		
+		"""
+		if len(args.defaults) > 0:
+			first = len(args.args) - len(args.defaults)
+			for i in xrange(len(args.defaults)):
+				self.__write_indented("if (!$defined(")
+				self.visit(args.args[first+i])
+				self.__write(")) ")
+				self.visit(args.args[first+i])
+				self.__write(" = ")
+				self.visit(args.defaults[i])
+				self.__write(";\n")
+
 	def __get_decorators(self, stmt):
 		"""
 		Return a dictionary of decorators and their parameters.
@@ -1081,8 +1129,36 @@ class PyCow(ast.NodeVisitor):
 		Translates an operator.
 		
 		"""
-		return self.OP_MAP[op.__class__.__name__]
+		return self.OP_MAP[op.__class__.__name__][0]
 	
+	def __get_op_cpa(self, op):
+		"""
+		Get operator chars, precedence and associativity.
+		
+		"""
+		return self.OP_MAP[op.__class__.__name__]
+
+	def __get_expr_pa(self, expr):
+		"""
+		Get the precedence and associativity of an expression.
+		
+		"""
+		if isinstance(expr, ast.Expr):
+			expr = expr.value
+		name = expr.__class__.__name__
+		if name in ("BoolOp", "BinOp", "UnaryOp"):
+			return self.__get_op_cpa(expr.op)[1:]
+		elif name in ("Lambda", "Dict", "List", "Num", "Str", "Name"):
+			return (1, False)
+		elif name == "IfExp":
+			return (15, False)
+		elif name in ("Attribute", "Subscript"):
+			return (1, True)
+		elif name in ("Call", "Repr"):
+			return (2, True)
+		elif name == "Compare":
+			return (8, True)
+
 	def __indent(self, updown = True):
 		if updown:
 			self.__ilevel += 1
