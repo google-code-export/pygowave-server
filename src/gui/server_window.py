@@ -169,4 +169,4 @@ class ServerWindow(QWidget, Ui_ServerWindow):
 		# Send to others
 		for other_id in xrange(self.tblUsers.rowCount()):
 			if other_id == user_id: continue
-			self.applyOperations.emit(other_id, new_version, simplejson.dumps(map(lambda o: o.serialize(), delta.operations)))
+			self.applyOperations.emit(other_id, new_version, simplejson.dumps(delta.serialize(False)))
