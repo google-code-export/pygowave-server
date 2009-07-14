@@ -73,9 +73,14 @@ class Operation(object):
 		self.wavelet_id = wavelet_id
 		self.blip_id = blip_id
 		self.index = index
-		self.tr_index = index # Special property for transformation (client only)
 		self.property = prop
-		self.tr_property = prop # Special property for transformation (client only)
+	
+	def clone(self):
+		"""
+		Create a copy of this operation.
+		
+		"""
+		return Operation(self.type, self.wave_id, self.wavelet_id, self.blip_id, self.index, self.property)
 	
 	def isNull(self):
 		"""
@@ -89,18 +94,58 @@ class Operation(object):
 			return self.property == 0
 		return False
 	
-	def indexMove(self):
+	def isCompatibleTo(self, other_op):
 		"""
-		Return how much a concurrent operation's index must be moved to include
-		the effects of this operation.
+		Check if the operation can be influenced by `other_op` and vice-versa.
+		
+		"""
+		if (self.type == DOCUMENT_INSERT or self.type == DOCUMENT_DELETE) and \
+				(other_op.type == DOCUMENT_INSERT or other_op.type == DOCUMENT_DELETE):
+			if self.wave_id != other_op.wave_id \
+					or self.wavelet_id != other_op.wavelet_id \
+					or self.blip_id != self.blip_id:
+				return False
+			return True
+		return False
+
+	def isInsert(self):
+		"""
+		Returns true, if this op is an insertion operation.
+		
+		"""
+		return self.type == DOCUMENT_INSERT
+	
+	def isDelete(self):
+		"""
+		Returns true, if this op is a deletion operation.
+		
+		"""
+		return self.type == DOCUMENT_DELETE
+
+	def length(self):
+		"""
+		Returns the length of this operation.
+		This can be interpreted as the distance a concurrent operation's index
+		must be moved to include the effects of this operation.
 		
 		"""
 		if self.type == DOCUMENT_INSERT:
 			return len(self.property)
 		elif self.type == DOCUMENT_DELETE:
-			return -self.property
+			return self.property
 		return 0
 	
+	def resize(self, value):
+		"""
+		Delete operations: Sets the amount of deleted characters/elements to
+		`value`.
+		
+		Other operations: No effect.
+		
+		"""
+		if self.type == DOCUMENT_DELETE:
+			self.property = value
+
 	def serialize(self):
 		"""
 		Serialize this operation into a dictionary.
@@ -116,7 +161,7 @@ class Operation(object):
 		}
 
 	def __repr__(self):
-		return "%s(\"%s\",%d(%d),%s(%s))" % (self.type.lower(), self.blip_id, self.index, self.tr_index, repr(self.property), repr(self.tr_property))
+		return "%s(\"%s\",%d,%s)" % (self.type.lower(), self.blip_id, self.index, repr(self.property))
 
 	@staticmethod
 	def unserialize(obj):
@@ -157,171 +202,124 @@ class OpManager(object):
 		"""
 		return len(self.operations) == 0
 
-	def transform(self, other_op, outgoing):
+	def transform(self, input_op):
 		"""
-		Transform the manager's operations list on behalf of another operation.
-		This deletes null operations and splits split operations.
+		Transform the input operation on behalf of the manager's operations
+		list. This will simultaneously transform the operations list on behalf
+		of the input operation.
+		This method returns a list of applicable operations. This list may be
+		empty or it may contain any number of new operations (according to
+		results of deletion, modification and splitting; i.e. the input
+		operation is not modified by itself).
 		
 		"""
+		
+		new_op = None
+		op_lst = [input_op.clone()]
+		
+		# From The Zen of Python, by Tim Peters:
+		# "Complex is better than complicated."
 		
 		i = 0
 		while i < len(self.operations):
 			myop = self.operations[i]
-			if OpManager.transformSingle(myop, other_op, outgoing):
-				if myop.isNull():
-					self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
-					self.operations.pop(i)
-					self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
-				else:
-					self.fireEvent("operationChanged", {"index": i})
+			j = 0
+			while j < len(op_lst):
+				op = op_lst[j]
+				
+				# Do not handle incompatible operations
+				if not op.isCompatibleTo(myop): continue
+				
+				# Check all possible cases
+				
+				end = None
+				if op.isDelete() and myop.isDelete():
+					if op.index < myop.index:
+						end = op.index + op.length()
+						if end <= myop.index:
+							myop.index -= op.length()
+							self.fireEvent("operationChanged", {"index": i})
+						else: # end > myop.index
+							if end < myop.index + myop.length():
+								op.resize(myop.index - op.index)
+								myop.resize(myop.length() - (end - myop.index))
+								myop.index = op.index
+								self.fireEvent("operationChanged", {"index": i})
+							else: # end >= myop.index + myop.length()
+								op.resize(op.length() - myop.length())
+								self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+								self.operations.pop(i)
+								self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+								i -= 1
+								break
+					else: # op.index >= myop.index
+						end = myop.index + myop.length()
+						if op.index >= end:
+							op.index -= myop.length()
+						else: # op.index < end
+							if op.index + op.length() <= end:
+								op_lst.pop(j)
+								j -= 1
+								myop.resize(myop.length() - op.length())
+								if myop.isNull():
+									self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+									self.operations.pop(i)
+									self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+									i -= 1
+									break
+								else:
+									self.fireEvent("operationChanged", {"index": i})
+							else: # op.index + op.length() > end
+								myop.resize(myop.length() - (end - op.index))
+								self.fireEvent("operationChanged", {"index": i})
+								op.resize(op.length() - (end - op.index))
+								op.index = myop.index
+				
+				elif op.isDelete() and myop.isInsert():
+					if op.index < myop.index:
+						if op.index + op.length() <= myop.index:
+							myop.index -= op.length()
+							self.fireEvent("operationChanged", {"index": i})
+						else: # op.index + op.length() > myop.index
+							new_op = op.clone()
+							op.resize(myop.index - op.index)
+							new_op.resize(new_op.length() - op.length())
+							op_lst.insert(j+1, new_op)
+							myop.index -= op.length()
+							self.fireEvent("operationChanged", {"index": i})
+					else: # op.index >= myop.index
+						op.index += myop.length()
+				
+				elif op.isInsert() and myop.isDelete():
+					if op.index <= myop.index:
+						myop.index += op.length()
+						self.fireEvent("operationChanged", {"index": i})
+					else: # op.index > myop.index
+						if op.index >= myop.index + myop.length():
+							op.index -= myop.length()
+						else: # op.index < myop.index + myop.length()
+							new_op = myop.clone()
+							myop.resize(op.index - myop.index)
+							self.fireEvent("operationChanged", {"index": i})
+							new_op.resize(new_op.length() - myop.length())
+							self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+1})
+							self.operations.insert(i+1, new_op)
+							self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+1})
+							op.index = myop.index
+				
+				elif op.isInsert() and myop.isInsert():
+					if op.index <= myop.index:
+						myop.index += op.length()
+						self.fireEvent("operationChanged", {"index": i})
+					else: # op.index > myop.index
+						op.index += myop.length()
+				
+				j += 1
+				
 			i += 1
+		
+		return op_lst
 	
-	def reverseTransform(self, op, outgoing):
-		"""
-		Transform the operation on behalf of the manager's operations list.
-		Reverse transformation does neither delete Null operations nor it splits
-		split operations.
-		
-		"""
-		
-		for myop in self.operations:
-			OpManager.transformSingle(op, myop, outgoing)
-	
-	def transformByManager(self, manager, outgoing):
-		"""
-		Transform the operations list on behalf of another manager.
-		"""
-		for op in manager.operations:
-			self.transform(op, outgoing)
-	
-	@staticmethod
-	def transformSingle(op, other_op, outgoing):
-		"""
-		Transform a single operation on behalf of another operation.
-		Returns true, if the operation was transformed.
-		
-		"""
-		if op.blip_id == other_op.blip_id and op.index != -1 and other_op.index != -1:
-			moveit = False
-			if op.type == DOCUMENT_DELETE and other_op.type == DOCUMENT_DELETE:
-				# other_op contains op
-				if op.tr_index >= other_op.tr_index and op.tr_index < other_op.tr_index + other_op.tr_property:
-					if op.tr_index + op.tr_property < other_op.tr_index + other_op.tr_property:
-						op.property = 0
-					else:
-						op.property -= other_op.tr_property - (op.tr_index - other_op.tr_index)
-						op.index = other_op.tr_index
-						if outgoing: op.tr_index = op.index
-					if outgoing: op.tr_property = op.property
-					return True
-				# op contains other_op
-				if other_op.tr_index >= op.tr_index and other_op.tr_index < op.tr_index + op.tr_property:
-					if other_op.tr_index + other_op.tr_property < op.tr_index + op.tr_property:
-						op.property -= other_op.tr_property
-					else:
-						op.property = other_op.tr_index - op.tr_index
-					if outgoing: op.tr_property = op.property
-					return True
-			if op.index > other_op.index:
-				if op.type == DOCUMENT_INSERT and other_op.type == DOCUMENT_DELETE and \
-						op.index < other_op.index + other_op.property:
-					op.index = other_op.index
-					if outgoing: op.tr_index = op.index
-					return True
-				moveit = True
-			elif op.index == other_op.index:
-				if outgoing and (op.type != DOCUMENT_INSERT or other_op.type != DOCUMENT_DELETE):
-					moveit = True
-				if not outgoing and op.type == DOCUMENT_DELETE:
-					moveit = True
-				if op.type == DOCUMENT_DELETE and other_op.type == DOCUMENT_DELETE:
-					moveit = False
-				#print outgoing, op, other_op, moveit
-			if moveit: # Index moves
-				op.index += other_op.indexMove()
-				if outgoing: op.tr_index = op.index
-				return True
-		return False
-
-	def split(self, other_op):
-		"""
-		Split the manager's operations on behalf of another operation.
-		
-		"""
-		i = 0
-		while i < len(self.operations):
-			myop = self.operations[i]
-			spl = OpManager.splitSingle(myop, other_op)
-			if len(spl) > 0:
-					print myop, spl
-					myop = spl[0]
-					self.operations[i] = myop
-					self.fireEvent("operationChanged", {"index": i})
-					self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+len(spl)-1})
-					for j in xrange(1, len(spl)):
-						self.operations.insert(i+j, spl[j])
-					self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+len(spl)-1})
-					i += 1
-			i += 1
-	
-	def reverseSplit(self, op):
-		"""
-		Split the operation on behalf of the manager's operations list.
-		This returns a list of operations. It contains either the original
-		operation or new operations that resulted in splitting the input
-		operation.
-		
-		"""
-	
-		out = [op]
-		
-		i = 0
-		while i < len(out):
-			op = out[i]
-			for myop in self.operations:
-				spl = OpManager.splitSingle(op, myop)
-				if len(spl) > 0:
-					op = spl[0]
-					out[i] = op
-					for j in xrange(1, len(spl)):
-						out.insert(i+j, spl[j])
-			i += 1
-		return out
-	
-	@staticmethod
-	def splitSingle(op, other_op):
-		"""
-		Check if a split is needed. Returns a list of new operations if so, or
-		an empty list if not.
-		
-		It is needed when a user wants to insert text into a block that has just
-		been deleted by another user. The delete operation then has to be
-		executed "around" the insertion.
-		
-		"""
-		spl = []
-		if op.blip_id == other_op.blip_id and op.index != -1 and other_op.index != -1:
-			if op.type == DOCUMENT_DELETE and other_op.type == DOCUMENT_INSERT and \
-					other_op.tr_index > op.tr_index and other_op.tr_index < op.tr_index + op.tr_property:
-				# a delete operation wraps an insert operation
-				newop = Operation(
-					DOCUMENT_DELETE,
-					op.wave_id, op.wavelet_id, op.blip_id,
-					op.tr_index,
-					other_op.tr_index - op.tr_index
-				)
-				spl.append(newop)
-				newop = Operation(
-					DOCUMENT_DELETE,
-					op.wave_id, op.wavelet_id, op.blip_id,
-					op.tr_index,
-					op.tr_property - (other_op.tr_index - op.tr_index)
-				)
-				newop.tr_index = op.tr_index + other_op.indexMove()
-				spl.append(newop)
-		return spl
-	
-
 	def fetch(self):
 		"""
 		Returns the pending operations and removes them from this manager.

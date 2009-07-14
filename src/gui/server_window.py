@@ -157,15 +157,18 @@ class ServerWindow(QWidget, Ui_ServerWindow):
 			return
 		delta = self.__deferred[user_id]
 		self.__deferred[user_id] = None
+		
 		# Transform
 		for i in xrange(delta.version, len(self.model.deltas)):
 			for op in self.model.deltas[i].operations:
-				delta.transform(op, True)
+				delta.transform(op) # Trash results (an existing delta cannot be changed)
 		self.model.addDelta(delta)
 		self.tblDeltas.scrollToBottom()
+		
 		# Acknowledge users delta
 		new_version = len(self.model.deltas)
 		self.acknowledge.emit(user_id, new_version)
+		
 		# Send to others
 		for other_id in xrange(self.tblUsers.rowCount()):
 			if other_id == user_id: continue

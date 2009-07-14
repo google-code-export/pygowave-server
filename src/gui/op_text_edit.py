@@ -37,6 +37,13 @@ class OpTextEdit(QTextEdit):
 				start = min(cur.position(), cur.anchor())
 				end = max(cur.position(), cur.anchor())
 				self.documentDelete.emit(self.__blip_id, start, end)
+		elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+			cur = self.textCursor()
+			start = min(cur.position(), cur.anchor())
+			if cur.hasSelection():
+				end = max(cur.position(), cur.anchor())
+				self.documentDelete.emit(self.__blip_id, start, end)
+			self.documentInsert.emit(self.__blip_id, start, "\n")
 		elif event.key() < Qt.Key_Escape and event.modifiers() & Qt.ControlModifier == Qt.NoModifier:
 			cur = self.textCursor()
 			start = min(cur.position(), cur.anchor())
