@@ -393,6 +393,16 @@ class PyCow(ast.NodeVisitor):
 				type = "Class"
 			elif c.func.id == "len" or c.func.id == "repr":
 				type = "Function"
+			elif c.func.id == "isinstance": # Translate to instanceof
+				if len(c.args) != 2:
+					raise ParseError("The isinstance call must have exactly two parameters (line %d)" % (c.lineno))
+				self.visit(c.args[0])
+				self.__write(" instanceof ")
+				if isinstance(c.args[1], ast.Name) and c.args[1].id == "list":
+					self.__write("Array")
+				else:
+					self.visit(c.args[1])
+				return
 			else:
 				# Look in current context
 				type = getattr(self.__curr_context.lookup(c.func.id), "type", None)
@@ -804,6 +814,20 @@ class PyCow(ast.NodeVisitor):
 		"""
 		if len(f.orelse) > 0:
 			raise ParseError("`else` branches of the `for` statement are not supported (line %d)" % (f.lineno))
+		
+		# -- This solution may not please the eye, but is pretty save and keeps all semantics --
+		#
+		# var __iter0_ = new XRange(start, stop, step);
+		# try{while (var value = __iter0_.next()) {
+		# 
+		# }} catch(e) {if(!e instanceof StopIteration) throw e;}
+		# delete __iter0_;
+		#
+		# var __iter0_ = new _Iterator(expr);
+		# try{while (var value = __iter0_.next()) {
+		#     var key = __iter0_.key();
+		# }} catch(e) {if(!e instanceof StopIteration) throw e;}
+		# delete __iter0_;
 		
 		xrange = False
 		tmp = False
