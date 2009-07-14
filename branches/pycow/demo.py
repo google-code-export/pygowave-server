@@ -37,7 +37,7 @@ class SomeExtension(Someclass):
 		super(SomeExtension, self).a_method(otherthing) # Here it's a call to the super class' method
 		print otherthing, self.something
 
-def a_function():
+def a_function(somevalue = "Default"): # Default values
 	"""
 	Docstring of function
 	
@@ -157,3 +157,8 @@ del b["a"]
 
 # Modulo operator on strings, i.e. sprintf
 print "Demo %d %s %.2f" % (b["-test-"], "abc", 0.123456)
+
+# Operator precedence test
+print (1 > 2 > 4) - (2 * 3)
+print 1 * (2 + 4) * -(1 + 2)
+print (True and True) and False or False

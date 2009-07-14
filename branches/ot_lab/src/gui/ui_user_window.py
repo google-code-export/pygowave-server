@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'src/gui/user_window.ui'
 #
-# Created: Wed Jul  8 10:29:02 2009
+# Created: Sun Jul 12 22:26:54 2009
 #      by: PyQt4 UI code generator 4.5.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -54,7 +54,7 @@ class Ui_UserWindow(object):
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.verticalLayout = QtGui.QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.rootBlip = QtGui.QTextEdit(self.scrollAreaWidgetContents)
+        self.rootBlip = OpTextEdit(self.scrollAreaWidgetContents)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
@@ -113,3 +113,4 @@ class Ui_UserWindow(object):
         self.groupBox_3.setTitle(QtGui.QApplication.translate("UserWindow", "Pending Operations", None, QtGui.QApplication.UnicodeUTF8))
         self.groupBox_2.setTitle(QtGui.QApplication.translate("UserWindow", "Cached Operations", None, QtGui.QApplication.UnicodeUTF8))
 
+from op_text_edit import OpTextEdit

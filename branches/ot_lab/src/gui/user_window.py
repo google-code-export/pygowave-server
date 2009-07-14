@@ -7,6 +7,8 @@ from core.diffop_generator import generateDiffOps
 from ui_user_window import Ui_UserWindow
 import simplejson
 
+from op_text_edit import OpTextEdit
+
 class OperationsModel(QAbstractTableModel):
 	HEADER = ["Operation", "Blip", "Index", "Property"]
 	
@@ -17,14 +19,14 @@ class OperationsModel(QAbstractTableModel):
 		self.builder.addEvent("afterOperationsInserted", self.__afterOperationsInserted)
 		self.builder.addEvent("beforeOperationsRemoved", self.__beforeOperationsRemoved)
 		self.builder.addEvent("afterOperationsRemoved", self.__afterOperationsRemoved)
-		self.builder.addEvent("operationTransformed", self.__operationTransformed)
+		self.builder.addEvent("operationChanged", self.__operationChanged)
 	
 	def __del__(self):
 		self.builder.removeEvent("beforeOperationsInserted", self.__beforeOperationsInserted)
 		self.builder.removeEvent("afterOperationsInserted", self.__afterOperationsInserted)
 		self.builder.removeEvent("beforeOperationsRemoved", self.__beforeOperationsRemoved)
 		self.builder.removeEvent("afterOperationsRemoved", self.__afterOperationsRemoved)
-		self.builder.removeEvent("operationTransformed", self.__operationTransformed)
+		self.builder.removeEvent("operationChanged", self.__operationChanged)
 	
 	def rowCount(self, parent = QModelIndex()):
 		return len(self.builder.operations)
@@ -70,7 +72,7 @@ class OperationsModel(QAbstractTableModel):
 	def __afterOperationsRemoved(self, args):
 		self.endRemoveRows()
 	
-	def __operationTransformed(self, args):
+	def __operationChanged(self, args):
 		self.dataChanged.emit(
 			self.index(args["index"], 2, QModelIndex()),
 			self.index(args["index"], 3, QModelIndex())
@@ -85,8 +87,7 @@ class UserWindow(QWidget, Ui_UserWindow):
 		super(UserWindow, self).__init__(parent)
 		self.setupUi(self)
 		self.setUserName(name)
-		self.rootBlip.textChanged.connect(self.__rootBlipChanged)
-		self.oldText = ""
+		self.rootBlip.setBlipId("root_blip")
 		
 		self.opsPending = OpManager("wave", "wavelet")
 		self.tblPending.setModel(OperationsModel(self.opsPending, self))
@@ -99,14 +100,19 @@ class UserWindow(QWidget, Ui_UserWindow):
 		self.tblCached.horizontalHeader().setStretchLastSection(True)
 		self.opsCache.addEvent("afterOperationsInserted", self.__afterOperationsInserted)
 		
-		self.opsIncoming = OpManager("wave", "wavelet")
-		
 		self.__version = 0
 		self.__applying = False
 		self.__pendingMarkerTimer = QTimer(self)
 		self.__pendingMarkerTimer.setInterval(10)
 		self.__pendingMarkerTimer.setSingleShot(True)
 		self.__pendingMarkerTimer.timeout.connect(self.__pendingMarkerCheck)
+		self.__ackPending = False
+	
+	def on_rootBlip_documentInsert(self, blip_id, index, content):
+		self.opsCache.documentInsert(str(blip_id), index, unicode(content))
+	
+	def on_rootBlip_documentDelete(self, blip_id, start, end):
+		self.opsCache.documentDelete(str(blip_id), start, end)
 	
 	def __pendingMarkerCheck(self):
 		if self.hasPendingOperations():
@@ -114,13 +120,6 @@ class UserWindow(QWidget, Ui_UserWindow):
 	
 	def setUserName(self, name):
 		self.setWindowTitle("User \"%s\"" % (name))
-
-	def __rootBlipChanged(self):
-		newText = unicode(self.rootBlip.toPlainText())
-		if not self.__applying:
-			generateDiffOps(self.opsCache, "root_blip", self.oldText, newText)
-		self.oldText = newText
-		self.__pendingMarkerTimer.start()
 
 	def closeEvent(self, event):
 		event.ignore()
@@ -131,26 +130,32 @@ class UserWindow(QWidget, Ui_UserWindow):
 
 	def applyOperations(self, version, ops):
 		self.__applying = True
-		self.opsIncoming.put(ops)
 		
-		# Transform incoming
-		self.opsIncoming.transformByManager(self.opsPending, False)
-		self.opsIncoming.transformByManager(self.opsCache, False)
-		#print self.opsIncoming.operations
+		if version != self.__version + 1:
+			QMessageBox.warning(self, "Error", "Version went out of sync (%d -> %d)!" % (self.__version, version))
 		
-		for op in self.opsIncoming.fetch():
-			cur = None
-			if op.type == DOCUMENT_INSERT:
-				cur = self.rootBlip.textCursor()
-				cur.movePosition(QTextCursor.Start)
-				cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
-				cur.insertText(op.property)
-			elif op.type == DOCUMENT_DELETE:
-				cur = self.rootBlip.textCursor()
-				cur.movePosition(QTextCursor.Start)
-				cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
-				cur.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, op.property)
-				cur.removeSelectedText()
+		for op in ops:
+			# Split by incoming
+			self.opsCache.split(op)
+			self.opsPending.split(op)
+			
+			# Transform incoming
+			self.opsPending.reverseTransform(op, False)
+			self.opsCache.reverseTransform(op, False)
+			
+			# Apply
+			if not op.isNull():
+				if op.type == DOCUMENT_INSERT:
+					cur = self.rootBlip.textCursor()
+					cur.movePosition(QTextCursor.Start)
+					cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
+					cur.insertText(op.property)
+				elif op.type == DOCUMENT_DELETE:
+					cur = self.rootBlip.textCursor()
+					cur.movePosition(QTextCursor.Start)
+					cur.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, op.index)
+					cur.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, op.property)
+					cur.removeSelectedText()
 			
 			# Transform cache/pending
 			self.opsCache.transform(op, True)
@@ -161,10 +166,10 @@ class UserWindow(QWidget, Ui_UserWindow):
 		self.__showVersion()
 
 	def hasPendingOperations(self):
-		return not self.opsPending.isEmpty()
+		return self.__ackPending
 
 	def __showVersion(self):
-		if self.opsPending.isEmpty():
+		if not self.__ackPending:
 			self.lblVersion.setText("v%d" % self.__version)
 		else:
 			self.lblVersion.setText("v%d - ack pending" % self.__version)
@@ -172,9 +177,11 @@ class UserWindow(QWidget, Ui_UserWindow):
 	def acknowledge(self, version):
 		self.__version = version
 		self.opsPending.fetch()
+		self.__ackPending = False
 		if not self.opsCache.isEmpty():
 			self.opsPending.put(self.opsCache.fetch())
-			self.processOperations.emit(self.__version, simplejson.dumps(map(lambda o: o.serialize(), self.opsPending.operations)))
+			self.__ackPending = True
+			self.processOperations.emit(self.__version, simplejson.dumps(self.opsPending.serialize(False)))
 		self.__showVersion()
 
 	def blipText(self, id):
@@ -189,7 +196,9 @@ class UserWindow(QWidget, Ui_UserWindow):
 				self.rootBlip.setStyleSheet("")
 
 	def __afterOperationsInserted(self, args):
-		if self.opsPending.isEmpty():
+		if not self.hasPendingOperations():
 			self.opsPending.put(self.opsCache.fetch())
-			self.processOperations.emit(self.__version, simplejson.dumps(map(lambda o: o.serialize(), self.opsPending.operations)))
+			self.__ackPending = True
+			self.processOperations.emit(self.__version, simplejson.dumps(self.opsPending.serialize(False)))
+			self.__pendingMarkerTimer.start()
 			self.__showVersion()
