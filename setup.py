@@ -10,4 +10,6 @@ setup(
 	author_email='patrick.p2k.schneider@gmail.com',
 	url='http://code.google.com/p/pygowave-server/',
 	packages=['pycow'],
+	package_data={'pycow': ['js/pycow.js', 'demo/*']},
+	scripts=['scripts/pycow'],
 )

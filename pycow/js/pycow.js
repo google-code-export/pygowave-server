@@ -21,6 +21,11 @@
  This script contains some Python-compatibility functions and objects.
 */
 
+/**
+ * len(object) -> integer
+ *
+ * Return the number of items of a sequence or mapping.
+ */
 len = function (obj) {
 	var l = 0;
 	switch ($type(obj)) {
@@ -36,13 +41,47 @@ len = function (obj) {
 	}
 };
 
+/**
+ * str(object) -> string
+ * 
+ * Return a nice string representation of the object.
+ * If the argument is a string, the return value is the same object.
+ */
+str = function (obj) {
+	if ($defined(obj.__str__))
+		return obj.__str__();
+	else if ($type(obj) == "number")
+		return String(obj);
+	else if ($type(obj) == "string")
+		return obj;
+	else
+		return repr(obj);
+};
+
+/**
+ * repr(object) -> string
+ *
+ * Return the canonical string representation of the object.
+ * For most object types, eval(repr(object)) == object.
+ */
 repr = function (obj) {
 	if ($defined(obj.__repr__))
 		return obj.__repr__();
+	else if ($type(obj) == "boolean")
+		return String(obj);
 	else
 		return JSON.encode(obj);
 };
 
+/**
+ * range([start,] stop[, step]) -> list of integers
+ *
+ * Return a list containing an arithmetic progression of integers.
+ * range(i, j) returns [i, i+1, i+2, ..., j-1]; start (!) defaults to 0.
+ * When step is given, it specifies the increment (or decrement).
+ * For example, range(4) returns [0, 1, 2, 3].  The end point is omitted!
+ * These are exactly the valid indices for a list of 4 elements.
+ */
 range = function (start, stop, step) {
 	if (!$defined(stop)) {
 		stop = start;
@@ -62,10 +101,27 @@ range = function (start, stop, step) {
 	return out;
 };
 
+dbgprint = function () {
+	var s = "";
+	var first = true;
+	
+	for (var i = 0; i < arguments.length; i++) {
+		if (first)
+			first = false;
+		else
+			s += " ";
+		s += str(arguments[i]);
+	}
+	
+	if ($defined(window.console))
+		window.console.info(s);
+	else
+		alert(s);
+}
+
 /*  
  *  Javascript sprintf
  *  http://www.webtoolkit.info/
- *
  */
 
 sprintfWrapper = {
@@ -202,11 +258,18 @@ String.implement({
 String.alias("toLowerCase", "lower");
 
 Array.implement({
+	/**
+	 * A.insert(index, object) -- insert object before index
+	 */
 	insert: function (index, object) {
 		this.splice(index, 0, object);
 	}
 });
 
+/**
+ * A.pop([index]) -> item -- remove and return item at index (default last).
+ * Returns undefined if list is empty or index is out of range.
+ */
 Array.prototype.pop = function (index) {
 	if (!$defined(index))
 		index = this.length-1;
@@ -218,15 +281,12 @@ Array.prototype.pop = function (index) {
 	return elt;
 };
 
-if (!$defined(window.StopIteration)) {
-	StopIteration = function () {};
-	StopIteration.prototype = new Error;
-	NewStopIteration = function () {return new StopIteration};
-}
-else {
-	NewStopIteration = function () {return StopIteration};
-}
+IndexError = function () {};
+IndexError.prototype = new Error;
 
+/**
+ * Java-Style iterator class.
+ */
 _Iterator = new Class({
 	initialize: function (object) {
 		this.obj = object;
@@ -241,17 +301,27 @@ _Iterator = new Class({
 			}
 		}
 	},
-	next: function () {
-		this.pos++;
+	hasNext: function () {
 		if (this.elts == null) {
-			if (this.pos >= this.obj.length)
-				throw NewStopIteration();
-			return this.obj[this.pos];
+			if (this.pos >= this.obj.length-1)
+				return false;
 		}
 		else {
-			if (this.pos >= this.elts.length)
-				throw NewStopIteration();
-			return this.obj[this.elts[this.pos]];
+			if (this.pos >= this.elts.length-1)
+				return false;
+		}
+		return true;
+	},
+	next: function () {
+		if (this.elts == null) {
+			if (this.pos >= this.obj.length-1)
+				throw new IndexError();
+			return this.obj[++this.pos];
+		}
+		else {
+			if (this.pos >= this.elts.length-1)
+				throw new IndexError();
+			return this.obj[this.elts[++this.pos]];
 		}
 	},
 	key: function () {
@@ -259,7 +329,7 @@ _Iterator = new Class({
 			return this.pos;
 		else {
 			if (this.pos >= this.elts.length)
-				throw NewStopIteration();
+				throw new IndexError();
 			return this.elts[this.pos];
 		}
 	}
@@ -277,9 +347,12 @@ XRange = new Class({
 		this.stop = stop;
 		this.step = step;
 	},
+	hasNext: function () {
+		return !((this.step > 0 && this.start >= this.stop) || (this.step < 0 && this.start <= this.stop));
+	},
 	next: function () {
 		if ((this.step > 0 && this.start >= this.stop) || (this.step < 0 && this.start <= this.stop))
-			throw NewStopIteration();
+			throw new IndexError();
 		var ret = this.start;
 		this.start += this.step;
 		return ret;

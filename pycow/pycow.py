@@ -335,26 +335,19 @@ class PyCow(ast.NodeVisitor):
 
 	def visit_Print(self, p):
 		"""
-		Translate `print` to `alert()`.
+		Translate `print` to `dbgprint()`.
 		
 		"""
-		if len(p.values) == 1:
-			self.__write("alert(repr(")
-			self.visit(p.values[0])
-			self.__write("))")
-			return
 		
-		self.__write("alert(\"")
-		self.__write(" ".join(["%s"] * len(p.values)))
-		self.__write("\".sprintf(repr(")
+		self.__write("dbgprint(")
 		first = True
 		for expr in p.values:
 			if first:
 				first = False
 			else:
-				self.__write("), repr(")
+				self.__write(", ")
 			self.visit(expr)
-		self.__write(")))")
+		self.__write(")")
 	
 	def visit_Num(self, n):
 		self.__write(str(n.n))
@@ -720,6 +713,20 @@ class PyCow(ast.NodeVisitor):
 		"""
 		self.__write("/* pass */")
 	
+	def visit_Continue(self, c):
+		"""
+		Translate the `continue` statement.
+		
+		"""
+		self.__write("continue")
+	
+	def visit_Break(self, c):
+		"""
+		Translate the `break` statement.
+		
+		"""
+		self.__write("break")
+	
 	def visit_Attribute(self, a):
 		"""
 		Translate an attribute chain.
@@ -738,10 +745,17 @@ class PyCow(ast.NodeVisitor):
 		self.visit(i.test)
 		
 		# Parse body
-		if len(i.body) == 1:
-			self.__write(")\n")
-		else:
+		braces = True
+		if len(i.body) == 1 \
+				and not isinstance(i.body[0], ast.If) \
+				and not isinstance(i.body[0], ast.While) \
+				and not isinstance(i.body[0], ast.For):
+			braces = False
+		
+		if braces:
 			self.__write(") {\n")
+		else:
+			self.__write(")\n")
 		
 		self.__indent()
 		for stmt in i.body:
@@ -750,24 +764,40 @@ class PyCow(ast.NodeVisitor):
 			self.__semicolon(stmt)
 		self.__indent(False)
 		
-		if len(i.body) > 1:
+		if braces:
 			self.__write_indented("}\n")
 		
 		# Parse else
-		if len(i.orelse) == 1:
-			self.__write_indented("else\n")
-		elif len(i.orelse) > 1:
+		if len(i.orelse) == 0:
+			return
+		braces = True
+		if len(i.orelse) == 1 \
+				and not isinstance(i.orelse[0], ast.If) \
+				and not isinstance(i.orelse[0], ast.While) \
+				and not isinstance(i.orelse[0], ast.For):
+			braces = False
+		
+		elseif = False
+		if len(i.orelse) == 1 and isinstance(i.orelse[0], ast.If):
+			elseif = True
+			self.__write_indented("else ")
+		elif braces:
 			self.__write_indented("else {\n")
+		else:
+			self.__write_indented("else\n")
 		
-		self.__indent()
-		for stmt in i.orelse:
-			self.__do_indent()
-			self.visit(stmt)
-			self.__semicolon(stmt)
-		self.__indent(False)
+		if elseif:
+			self.visit(i.orelse[0])
+		else:
+			self.__indent()
+			for stmt in i.orelse:
+				self.__do_indent()
+				self.visit(stmt)
+				self.__semicolon(stmt)
+			self.__indent(False)
+			if braces:
+				self.__write_indented("}\n")
 		
-		if len(i.orelse) > 1:
-			self.__write_indented("}\n")
 	
 	def visit_IfExp(self, i):
 		"""
@@ -815,23 +845,21 @@ class PyCow(ast.NodeVisitor):
 		if len(f.orelse) > 0:
 			raise ParseError("`else` branches of the `for` statement are not supported (line %d)" % (f.lineno))
 		
-		# -- This solution may not please the eye, but is pretty save and keeps all semantics --
+		# -- This solution is needed to keep all semantics --
 		#
-		# var __iter0_ = new XRange(start, stop, step);
-		# try{while (var value = __iter0_.next()) {
+		# for (var __iter0_ = new XRange(start, stop, step); __iter0_.hasNext();) {
+		#     var value = __iter0_.next();
 		# 
-		# }} catch(e) {if(!e instanceof StopIteration) throw e;}
+		# }
 		# delete __iter0_;
 		#
-		# var __iter0_ = new _Iterator(expr);
-		# try{while (var value = __iter0_.next()) {
+		# for (var __iter0_ = new _Iterator(expr); __iter0_.hasNext();)) {
+		#     var value = __iter0_.next();
 		#     var key = __iter0_.key();
-		# }} catch(e) {if(!e instanceof StopIteration) throw e;}
+		# }
 		# delete __iter0_;
 		
 		xrange = False
-		tmp = False
-		iter = None
 		iterexpr = None
 		keyexpr = None
 		valexpr = None
@@ -849,88 +877,40 @@ class PyCow(ast.NodeVisitor):
 			valexpr = f.target.elts[1]
 		else:
 			iterexpr = f.iter
-			keyexpr = f.target
 			valexpr = f.target
 		
 		if isinstance(f.target, ast.Tuple) and not iteritems:
 			raise ParseError("Tuple targets can only be used in conjunction with an iteritems() call on the iterable of the `for` statement (line %d)" % (f.lineno))
 		
-		if isinstance(iterexpr, ast.Name):
-			iter = iterexpr.id
-		elif (isinstance(iterexpr, ast.Attribute) \
-				and self.__curr_context.type == "Method" \
-				and isinstance(iterexpr.value, ast.Name) \
-				and iterexpr.value.id == "self"):
-			iter = "this.%s" % (iterexpr.attr)
-		elif not xrange:
-			tmp = True
-			iter = "__tmp_iter%d_" % (self.__iteratorid)
-			self.__iteratorid += 1
-			self.__write("var %s = " % (iter))
-			self.visit(iterexpr)
-			self.__write(";\n")
-			self.__do_indent()
-		
-		self.__write("for (")
-		if isinstance(keyexpr, ast.Name):
-			if self.__curr_context.declare_variable(keyexpr.id):
-				self.__write("var ")
-		self.visit(keyexpr)
-		
+		itervar = "__iter%d_" % (self.__iteratorid)
+		self.__iteratorid += 1
 		if xrange:
-			if len(f.iter.args) == 1:
-				self.__write(" = 0; ")
-				self.visit(keyexpr)
-				self.__write(" < ")
-				self.visit(f.iter.args[0])
-				self.__write("; ")
-				self.visit(keyexpr)
-				self.__write("++")
-			else:
-				self.__write(" = ")
-				self.visit(f.iter.args[0])
-				self.__write("; ")
-				self.visit(keyexpr)
-				if len(f.iter.args) == 3:
-					if not isinstance(f.iter.args[2], ast.Num):
-						raise ParseError("Only numbers allowed in step expression of the range/xrange expression in a `for` statement (line %d)" % (f.lineno))
-					if f.iter.args[2].n < 0:
-						self.__write(" > ")
-					else:
-						self.__write(" < ")
-				else:
-					self.__write(" < ")
-				self.visit(f.iter.args[1])
-				self.__write("; ")
-				self.visit(keyexpr)
-				if len(f.iter.args) == 3:
-					if f.iter.args[2].n < 0:
-						if f.iter.args[2].n == -1:
-							self.__write("--")
-						else:
-							self.__write(" -= %s" % (str(-f.iter.args[2].n)))
-					else:
-						self.__write(" += %s" % (str(f.iter.args[2].n)))
-				else:
-					self.__write("++")
+			self.__write("for (var %s = new XRange(" % (itervar))
+			self.__parse_args(f.iter)
 		else:
-			self.__write(" in " + iter)
+			self.__write("for (var %s = new _Iterator(" % (itervar))
+			self.__indent()
+			self.__indent()
+			self.visit(iterexpr)
+			self.__indent(False)
+			self.__indent(False)
+		
+		self.__write("); %s.hasNext();) {\n" % (itervar))
 		
 		# Parse body
 		self.__indent()
-		if len(f.body) == 1 and xrange:
-			self.__write(")\n")
-		else:
-			self.__write(") {\n")
-			if not xrange:
-				self.__do_indent()
-				if isinstance(valexpr, ast.Name):
-					if self.__curr_context.declare_variable(valexpr.id):
-						self.__write("var ")
-				self.visit(valexpr)
-				self.__write(" = %s[" % (iter))
-				self.visit(keyexpr)
-				self.__write("];\n")
+		self.__do_indent()
+		if isinstance(valexpr, ast.Name) and self.__curr_context.declare_variable(valexpr.id):
+			self.__write("var ")
+		self.visit(valexpr)
+		self.__write(" = %s.next();\n" % (itervar))
+		
+		if keyexpr != None:
+			self.__do_indent()
+			if isinstance(keyexpr, ast.Name) and self.__curr_context.declare_variable(keyexpr.id):
+				self.__write("var ")
+			self.visit(keyexpr)
+			self.__write(" = %s.key();\n" % (itervar))
 		
 		for stmt in f.body:
 			self.__do_indent()
@@ -938,12 +918,9 @@ class PyCow(ast.NodeVisitor):
 			self.__semicolon(stmt)
 		self.__indent(False)
 		
-		if len(f.body) > 1 or not xrange:
-			self.__write_indented("}\n")
-		
-		if tmp:
-			self.__write_indented("delete %s;\n" % (iter))
-			self.__iteratorid -= 1
+		self.__write_indented("}\n")
+		self.__write_indented("delete %s;\n" % (itervar))
+		self.__iteratorid -= 1
 	
 	def visit_ClassDef(self, c):
 		"""
@@ -1269,48 +1246,3 @@ def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""
 	input = open(in_filename, "r").read()
 	moo.visit(ast.parse(input, in_filename))
 	outfile.close()
-
-if __name__ == "__main__":
-	import sys
-	import os.path
-	
-	if len(sys.argv) < 2:
-		print "=> PyCow - Python to JavaScript with MooTools translator <="
-		print "Usage: %s [OPTION]... filename.py" % (os.path.basename(sys.argv[0]))
-		print "Options:"
-		print " -o filename   Set the output file name (default: filename.py.js)"
-		print " -n namespace  Enclose module in namespace"
-		print " -W            Omit warning comments in output"
-		sys.exit()
-	
-	in_filename = ""
-	out_filename = ""
-	namespace = ""
-	warnings = True
-	
-	i = 1
-	while i < len(sys.argv):
-		arg = sys.argv[i]
-		if arg == "-o":
-			if i+1 >= len(sys.argv):
-				print "Error parsing command line: Missing parameter for option '-o'."
-				sys.exit(1)
-			out_filename = sys.argv[i+1]
-			i += 1
-		elif arg == "-n":
-			if i+1 >= len(sys.argv):
-				print "Error parsing command line: Missing parameter for option '-n'."
-				sys.exit(1)
-			namespace = sys.argv[i+1]
-			i += 1
-		elif arg == "-W":
-			warnings = False
-		else:
-			in_filename = arg
-		i += 1
-	
-	if in_filename == "":
-		print "Error parsing command line: Missing input file."
-		sys.exit(1)
-	
-	translate_file(in_filename, out_filename, namespace=namespace, warnings=warnings)
