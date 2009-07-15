@@ -1,8 +1,8 @@
 
 # Import statements are ignored atm, you must look after them for yourself
 
-from decorators import Implements, Class
-from utils import Events, Options, Hash
+from pycow.decorators import Implements, Class
+from pycow.utils import Events, Options, Hash
 
 # Use __all__ to hide classes and functions
 
@@ -108,15 +108,20 @@ while i < 3 and not False: # While statement
 	print i
 	i += 1 # Assignment operator
 
+print "---"
+
 for j in xrange(3): # For statement (xrange)
 	print j
 
-for j in xrange(1,4): # For statement (xrange; with start)
-	print j
+print "----"
 
-for j in xrange(1,4,2): # For statement (xrange; with start and step)
-	print j
-	
+for i in xrange(1,4): # For statement (xrange; with start)
+	print i
+	for j in xrange(i,4,2): # For statement (xrange; nested; with start and step)
+		print j
+
+print "-----"
+
 for j in xrange(4,1,-1): # For statement (xrange; with start and step backwards)
 	print j
 
@@ -159,8 +164,8 @@ del b["a"]
 print "Demo %d %s %.2f" % (b["-test-"], "abc", 0.123456)
 
 # Operator precedence test
-print (1 > 2 > 4) - (2 * 3)
-print 1 * (2 + 4) * -(1 + 2)
+print (1 > 2 > 4) and ((2 * 3) > 8) # removes all parentheses
+print 1 * (2 + 4) * -(1 + 2) # keeps all parentheses
 print (True and True) and False or False
 
 # isinstance

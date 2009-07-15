@@ -6,6 +6,8 @@ DOCUMENT_INSERT = 'DOCUMENT_INSERT'
 DOCUMENT_DELETE = 'DOCUMENT_DELETE'
 DOCUMENT_REPLACE = 'DOCUMENT_REPLACE'
 
+__all__ = ["Range", "OpManager"]
+
 @Class
 class Range(object):
 	"""
@@ -13,18 +15,20 @@ class Range(object):
 	
 	Ranges map positions in the document. A range must have at least a length
 	of zero. If zero, the range is considered to be a single point (collapsed).
+	
+	@class {public} Range
 	"""
 	
 	def __init__(self, start=0, end=1):
 		"""
 		Initializes the range with a start and end position.
 		
-		Args:
-		  start: Start index of the range.
-		  end: End index of the range.
+		@constructor {public} initialize
 		
-		Raises:
-		  ValueError: Value error if the range is invalid (less than zero).
+		@param {int} start Start index of the range.
+		@param {int} end End index of the range.
+		
+		#@throws ValueError Value error if the range is invalid (less than zero).
 		"""
 		self.start = start
 		self.end = end
@@ -37,6 +41,8 @@ class Range(object):
 	def isCollapsed(self):
 		""""
 		Returns true if this represents a single point as opposed to a range.
+		
+		@function {public Boolean} isCollapsed
 		"""
 		return self.end == self.start
 
@@ -53,20 +59,25 @@ class Operation(object):
 	creating a "delete blip" operation will not remove the blip from the local
 	context for the duration of this session. It is better to use the OpBased
 	model classes directly instead.
+	
+	@class {private} pygowave.operations.Operation
 	"""
 	
 	def __init__(self, op_type, wave_id, wavelet_id, blip_id='', index=-1, prop=None):
 		"""
 		Initializes this operation with contextual data.
 		
-		Args:
-		  op_type: Type of operation.
-		  wave_id: The id of the wave that this operation is to be applied.
-		  wavelet_id: The id of the wavelet that this operation is to be applied.
-		  blip_id: The optional id of the blip that this operation is to be applied.
-		  index: Optional integer index for content-based operations.
-		  prop: A weakly typed property object is based on the context of this
-		    operation.
+		@constructor {public} initialize
+		@param {String} op_type Type of operation
+		@param {String} wave_id The id of the wave that this operation is to
+		                        be applied.
+		@param {String} wavelet_id The id of the wavelet that this operation is
+		                           to be applied.
+		@param {String} blip_id The optional id of the blip that this operation
+		                        is to be applied.
+		@param {int} index Optional integer index for content-based operations.
+		@param {Object} prop A weakly typed property object is based on the
+		                     context of this operation.
 		"""
 		self.type = op_type
 		self.wave_id = wave_id
@@ -79,14 +90,17 @@ class Operation(object):
 		"""
 		Create a copy of this operation.
 		
+		@function {public Boolean} clone
 		"""
-		return Operation(self.type, self.wave_id, self.wavelet_id, self.blip_id, self.index, self.property)
+		return Operation(self.type, self.wave_id, self.wavelet_id, self.blip_id,
+						 self.index, self.property)
 	
 	def isNull(self):
 		"""
 		Return weather this operation is a null operation i.e. it does not
 		change anything.
 		
+		@function {public Boolean} isNull
 		"""
 		if self.type == DOCUMENT_INSERT:
 			return len(self.property) == 0
@@ -98,6 +112,8 @@ class Operation(object):
 		"""
 		Check if the operation can be influenced by `other_op` and vice-versa.
 		
+		@function {public Boolean} isCompatibleTo
+		@param {Operation} other_op
 		"""
 		if (self.type == DOCUMENT_INSERT or self.type == DOCUMENT_DELETE) and \
 				(other_op.type == DOCUMENT_INSERT or other_op.type == DOCUMENT_DELETE):
@@ -112,6 +128,7 @@ class Operation(object):
 		"""
 		Returns true, if this op is an insertion operation.
 		
+		@function {public Boolean} isInsert
 		"""
 		return self.type == DOCUMENT_INSERT
 	
@@ -119,6 +136,7 @@ class Operation(object):
 		"""
 		Returns true, if this op is a deletion operation.
 		
+		@function {public Boolean} isDelete
 		"""
 		return self.type == DOCUMENT_DELETE
 
@@ -128,6 +146,7 @@ class Operation(object):
 		This can be interpreted as the distance a concurrent operation's index
 		must be moved to include the effects of this operation.
 		
+		@function {public int} length
 		"""
 		if self.type == DOCUMENT_INSERT:
 			return len(self.property)
@@ -142,6 +161,8 @@ class Operation(object):
 		
 		Other operations: No effect.
 		
+		@function {public} resize
+		@param {int} value
 		"""
 		if self.type == DOCUMENT_DELETE:
 			self.property = value
@@ -150,6 +171,7 @@ class Operation(object):
 		"""
 		Serialize this operation into a dictionary.
 		
+		@function {public String} serialize
 		"""
 		return {
 			"type": self.type,
@@ -161,15 +183,18 @@ class Operation(object):
 		}
 
 	def __repr__(self):
-		return "%s(\"%s\",%d,%s)" % (self.type.lower(), self.blip_id, self.index, repr(self.property))
+		return "%s(\"%s\",%d,%s)" % (self.type.lower(), self.blip_id,
+									 self.index, repr(self.property))
 
 	@staticmethod
 	def unserialize(obj):
 		"""
 		Unserialize an operation from a dictionary.
 		
+		@function {public static Operation} unserialize
 		"""
-		return Operation(obj["type"], obj["wave_id"], obj["wavelet_id"], obj["blip_id"], obj["index"], obj["property"])
+		return Operation(obj["type"], obj["wave_id"], obj["wavelet_id"],
+						 obj["blip_id"], obj["index"], obj["property"])
 
 @Implements(Events)
 @Class
@@ -182,15 +207,17 @@ class OpManager(object):
 	transformation, merging and serializing.
 	
 	An OpManager is always associated with exactly one wave/wavelet.
+	
+	@class {public} pygowave.operations.OpManager
 	"""
 	
 	def __init__(self, wave_id, wavelet_id):
 		"""
 		Initializes the op manager with a wave and wavelet ID.
 		
-		Args:
-		  wave_id: The ID of the wave.
-		  wavelet_id: The ID of the wavelet
+		@constructor {public} initialize
+		@param {String} wave_id The ID of the wave
+		@param {String} wavelet_id The ID of the wavelet
 		"""
 		self.wave_id = wave_id
 		self.wavelet_id = wavelet_id
@@ -199,6 +226,8 @@ class OpManager(object):
 	def isEmpty(self):
 		"""
 		Return true if this manager is not holding operations.
+		
+		@function {public Boolean} isEmpty
 		"""
 		return len(self.operations) == 0
 
@@ -212,6 +241,8 @@ class OpManager(object):
 		results of deletion, modification and splitting; i.e. the input
 		operation is not modified by itself).
 		
+		@function {public Operation[]} transform
+		@param {Operation} input_op
 		"""
 		
 		new_op = None
@@ -239,41 +270,39 @@ class OpManager(object):
 						if end <= myop.index:
 							myop.index -= op.length()
 							self.fireEvent("operationChanged", {"index": i})
-						else: # end > myop.index
-							if end < myop.index + myop.length():
-								op.resize(myop.index - op.index)
-								myop.resize(myop.length() - (end - myop.index))
-								myop.index = op.index
-								self.fireEvent("operationChanged", {"index": i})
-							else: # end >= myop.index + myop.length()
-								op.resize(op.length() - myop.length())
+						elif end < myop.index + myop.length(): # and end > myop.index
+							op.resize(myop.index - op.index)
+							myop.resize(myop.length() - (end - myop.index))
+							myop.index = op.index
+							self.fireEvent("operationChanged", {"index": i})
+						else: # end >= myop.index + myop.length()
+							op.resize(op.length() - myop.length())
+							self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+							self.operations.pop(i)
+							self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+							i -= 1
+							break
+					else: # op.index >= myop.index
+						end = myop.index + myop.length()
+						if op.index >= end:
+							op.index -= myop.length()
+						elif op.index + op.length() <= end: # and op.index < end
+							op_lst.pop(j)
+							j -= 1
+							myop.resize(myop.length() - op.length())
+							if myop.isNull():
 								self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
 								self.operations.pop(i)
 								self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
 								i -= 1
 								break
-					else: # op.index >= myop.index
-						end = myop.index + myop.length()
-						if op.index >= end:
-							op.index -= myop.length()
-						else: # op.index < end
-							if op.index + op.length() <= end:
-								op_lst.pop(j)
-								j -= 1
-								myop.resize(myop.length() - op.length())
-								if myop.isNull():
-									self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
-									self.operations.pop(i)
-									self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
-									i -= 1
-									break
-								else:
-									self.fireEvent("operationChanged", {"index": i})
-							else: # op.index + op.length() > end
-								myop.resize(myop.length() - (end - op.index))
+							else:
 								self.fireEvent("operationChanged", {"index": i})
-								op.resize(op.length() - (end - op.index))
-								op.index = myop.index
+						else: # op.index + op.length() > end
+							myop.resize(myop.length() - (end - op.index))
+							self.fireEvent("operationChanged", {"index": i})
+							op.resize(op.length() - (end - op.index))
+							op.index = myop.index
 				
 				elif op.isDelete() and myop.isInsert():
 					if op.index < myop.index:
@@ -294,18 +323,17 @@ class OpManager(object):
 					if op.index <= myop.index:
 						myop.index += op.length()
 						self.fireEvent("operationChanged", {"index": i})
-					else: # op.index > myop.index
-						if op.index >= myop.index + myop.length():
-							op.index -= myop.length()
-						else: # op.index < myop.index + myop.length()
-							new_op = myop.clone()
-							myop.resize(op.index - myop.index)
-							self.fireEvent("operationChanged", {"index": i})
-							new_op.resize(new_op.length() - myop.length())
-							self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+1})
-							self.operations.insert(i+1, new_op)
-							self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+1})
-							op.index = myop.index
+					elif op.index >= myop.index + myop.length(): # op.index > myop.index
+						op.index -= myop.length()
+					else: # op.index < myop.index + myop.length()
+						new_op = myop.clone()
+						myop.resize(op.index - myop.index)
+						self.fireEvent("operationChanged", {"index": i})
+						new_op.resize(new_op.length() - myop.length())
+						self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+1})
+						self.operations.insert(i+1, new_op)
+						self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+1})
+						op.index = myop.index
 				
 				elif op.isInsert() and myop.isInsert():
 					if op.index <= myop.index:
@@ -323,6 +351,8 @@ class OpManager(object):
 	def fetch(self):
 		"""
 		Returns the pending operations and removes them from this manager.
+		
+		@function {public Operation[]} fetch
 		"""
 		ops = self.operations
 		self.fireEvent("beforeOperationsRemoved", {"start": 0, "end": len(ops)-1})
@@ -333,6 +363,9 @@ class OpManager(object):
 	def put(self, ops):
 		"""
 		Opposite of fetch. Inserts all given operations into this manager.
+		
+		@function {public} put
+		@param {Operation[]} ops
 		"""
 		if len(ops) == 0:
 			return
@@ -347,6 +380,8 @@ class OpManager(object):
 		Serialize this manager's operations into a list of dictionaries.
 		Set fetch to true to also clear this manager.
 		
+		@function {public Object[]} serialize
+		@param {Boolean} fetch
 		"""
 		if fetch:
 			ops = self.fetch()
@@ -365,6 +400,8 @@ class OpManager(object):
 		Unserialize a list of dictionaries to operations and add them to this
 		manager.
 		
+		@function {public} unserialize
+		@param {Object[]} serial_ops
 		"""
 		
 		ops = []
@@ -374,11 +411,13 @@ class OpManager(object):
 		
 		self.put(ops)
 
-	def insert(self, newop):
+	def __insert(self, newop):
 		"""
 		Inserts and probably merges an operation into the manager's
 		operation list.
 		
+		@function {private} __insert
+		@param {Operation} newop
 		"""
 		
 		# Only merge with the last op (otherwise this may get a bit complicated)
@@ -441,13 +480,13 @@ class OpManager(object):
 	def documentInsert(self, blip_id, index, content):
 		"""
 		Requests to insert content into a document at a specific location.
-	
-		Args:
-		  blip_id: The blip id that this operation is applied to.
-		  index: The position insert the content at in ths document.
-		  content: The content to insert.
+		
+		@function {public} documentInsert
+		@param {String} blip_id The blip id that this operation is applied to
+		@param {int} index The position insert the content at in ths document
+		@param {String} content The content to insert
 		"""
-		self.insert(Operation(
+		self.__insert(Operation(
 			DOCUMENT_INSERT,
 			self.wave_id, self.wavelet_id, blip_id,
 			index,
@@ -458,12 +497,12 @@ class OpManager(object):
 		"""
 		Requests to delete content in a given range.
 		
-		Args:
-		  blip_id: The blip id that this operation is applied to.
-		  start: Start of the range.
-		  end: End of the range.
+		@function {public} documentDelete
+		@param {String} blip_id The blip id that this operation is applied to
+		@param {int} start Start of the range
+		@param {int} end End of the range
 		"""
-		self.insert(Operation(
+		self.__insert(Operation(
 			DOCUMENT_DELETE,
 			self.wave_id, self.wavelet_id, blip_id,
 			start,
