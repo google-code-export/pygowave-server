@@ -60,12 +60,20 @@ def implement(cls, properties):
 			setattr(cls, name, value)
 	return cls
 
+def parent(self, *args):
+	"""
+	Call the parent class' method. This uses a stacktrace and thus may not be
+	very efficient. Use super() instead.
+	"""
+	import traceback
+	getattr(super(self.__class__, self), traceback.extract_stack(None, 2)[0][2])(*args)
+
 def Class(cls):
 	"""
 	This class decorator patches some things in your classes for MooTools
 	compatibility. Namely it modifies the constructor to create shallow copies
 	of class-bound properties (to reflect MooTools' behaviour) and adds a
-	`implement` method to the class.
+	`implement` and `parent` method to the class.
 	
 	"""
 	
@@ -88,5 +96,6 @@ def Class(cls):
 		cls.__dict__["implement"] = implement
 	else:
 		cls.implement = implement
+		cls.parent = parent
 	
 	return cls

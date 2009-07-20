@@ -35,6 +35,9 @@ class SomeExtension(Someclass):
 	
 	def a_method(self, otherthing):
 		super(SomeExtension, self).a_method(otherthing) # Here it's a call to the super class' method
+		
+		# Note: this.parent has been backported to python, so you could use self.parent(otherthing) here, too.
+		
 		print otherthing, self.something
 
 def a_function(somevalue = "Default"): # Default values
@@ -55,6 +58,10 @@ def a_function(somevalue = "Default"): # Default values
 obj = Someclass("a lengthy ")
 
 obj.a_method("test") # PyCow's type inference does not include types of variables (atm)
+
+obj = SomeExtension()
+
+obj.a_method(" sub")
 
 a_function() # PyCow does not put "new" here, because a_function is a simple function
 
