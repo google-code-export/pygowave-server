@@ -6,7 +6,7 @@ DOCUMENT_INSERT = 'DOCUMENT_INSERT'
 DOCUMENT_DELETE = 'DOCUMENT_DELETE'
 DOCUMENT_REPLACE = 'DOCUMENT_REPLACE'
 
-__all__ = ["Range", "OpManager"]
+__all__ = ["Range", "OpManager", "DOCUMENT_INSERT", "DOCUMENT_DELETE", "DOCUMENT_REPLACE"]
 
 @Class
 class Range(object):
@@ -211,6 +211,42 @@ class OpManager(object):
 	@class {public} pygowave.operations.OpManager
 	"""
 	
+	# --- Event documentation ---
+	"""
+	Fired if an operation in this manager has been changed.
+	@event onOperationChanged
+	@param {int} index Index of the changed operation
+	"""
+	
+	"""
+	Fired if one or more operations are about to be removed.
+	@event onBeforeOperationsRemoved
+	@param {int} start Start index of the removal.
+	@param {int} end End index of the removal.
+	"""
+	
+	"""
+	Fired if one or more operations have been removed.
+	@event onAfterOperationsRemoved
+	@param {int} start Start index of the removal.
+	@param {int} end End index of the removal.
+	"""
+	
+	"""
+	Fired if one or more operations are about to be inserted.
+	@event onBeforeOperationsInserted
+	@param {int} start Start index of the insertion.
+	@param {int} end End index of the insertion.
+	"""
+	
+	"""
+	Fired if one or more operations have been inserted.
+	@event onAfterOperationsInserted
+	@param {int} start Start index of the insertion.
+	@param {int} end End index of the insertion.
+	"""
+	# ---------------------------
+	
 	def __init__(self, wave_id, wavelet_id):
 		"""
 		Initializes the op manager with a wave and wavelet ID.
@@ -269,17 +305,17 @@ class OpManager(object):
 						end = op.index + op.length()
 						if end <= myop.index:
 							myop.index -= op.length()
-							self.fireEvent("operationChanged", {"index": i})
+							self.fireEvent("operationChanged", i)
 						elif end < myop.index + myop.length(): # and end > myop.index
 							op.resize(myop.index - op.index)
 							myop.resize(myop.length() - (end - myop.index))
 							myop.index = op.index
-							self.fireEvent("operationChanged", {"index": i})
+							self.fireEvent("operationChanged", i)
 						else: # end >= myop.index + myop.length()
 							op.resize(op.length() - myop.length())
-							self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+							self.fireEvent("beforeOperationsRemoved", [i, i])
 							self.operations.pop(i)
-							self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+							self.fireEvent("afterOperationsRemoved", [i, i])
 							i -= 1
 							break
 					else: # op.index >= myop.index
@@ -291,16 +327,16 @@ class OpManager(object):
 							j -= 1
 							myop.resize(myop.length() - op.length())
 							if myop.isNull():
-								self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+								self.fireEvent("beforeOperationsRemoved", [i, i])
 								self.operations.pop(i)
-								self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+								self.fireEvent("afterOperationsRemoved", [i, i])
 								i -= 1
 								break
 							else:
-								self.fireEvent("operationChanged", {"index": i})
+								self.fireEvent("operationChanged", i)
 						else: # op.index + op.length() > end
 							myop.resize(myop.length() - (end - op.index))
-							self.fireEvent("operationChanged", {"index": i})
+							self.fireEvent("operationChanged", i)
 							op.resize(op.length() - (end - op.index))
 							op.index = myop.index
 				
@@ -308,37 +344,37 @@ class OpManager(object):
 					if op.index < myop.index:
 						if op.index + op.length() <= myop.index:
 							myop.index -= op.length()
-							self.fireEvent("operationChanged", {"index": i})
+							self.fireEvent("operationChanged", i)
 						else: # op.index + op.length() > myop.index
 							new_op = op.clone()
 							op.resize(myop.index - op.index)
 							new_op.resize(new_op.length() - op.length())
 							op_lst.insert(j+1, new_op)
 							myop.index -= op.length()
-							self.fireEvent("operationChanged", {"index": i})
+							self.fireEvent("operationChanged", i)
 					else: # op.index >= myop.index
 						op.index += myop.length()
 				
 				elif op.isInsert() and myop.isDelete():
 					if op.index <= myop.index:
 						myop.index += op.length()
-						self.fireEvent("operationChanged", {"index": i})
+						self.fireEvent("operationChanged", i)
 					elif op.index >= myop.index + myop.length(): # op.index > myop.index
 						op.index -= myop.length()
 					else: # op.index < myop.index + myop.length()
 						new_op = myop.clone()
 						myop.resize(op.index - myop.index)
-						self.fireEvent("operationChanged", {"index": i})
+						self.fireEvent("operationChanged", i)
 						new_op.resize(new_op.length() - myop.length())
-						self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+1})
+						self.fireEvent("beforeOperationsInserted", [i+1, i+1])
 						self.operations.insert(i+1, new_op)
-						self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+1})
+						self.fireEvent("afterOperationsInserted", [i+1, i+1])
 						op.index = myop.index
 				
 				elif op.isInsert() and myop.isInsert():
 					if op.index <= myop.index:
 						myop.index += op.length()
-						self.fireEvent("operationChanged", {"index": i})
+						self.fireEvent("operationChanged", i)
 					else: # op.index > myop.index
 						op.index += myop.length()
 				
@@ -355,9 +391,9 @@ class OpManager(object):
 		@function {public Operation[]} fetch
 		"""
 		ops = self.operations
-		self.fireEvent("beforeOperationsRemoved", {"start": 0, "end": len(ops)-1})
+		self.fireEvent("beforeOperationsRemoved", [0, len(ops)-1])
 		self.operations = []
-		self.fireEvent("afterOperationsRemoved", {"start": 0, "end": len(ops)-1})
+		self.fireEvent("afterOperationsRemoved", [0, len(ops)-1])
 		return ops
 	
 	def put(self, ops):
@@ -371,9 +407,9 @@ class OpManager(object):
 			return
 		start = len(self.operations)
 		end = start + len(ops) - 1
-		self.fireEvent("beforeOperationsInserted", {"start": start, "end": end})
+		self.fireEvent("beforeOperationsInserted", [start, end])
 		self.operations.extend(ops)
-		self.fireEvent("afterOperationsInserted", {"start": start, "end": end})
+		self.fireEvent("afterOperationsInserted", [start, end])
 
 	def serialize(self, fetch):
 		"""
@@ -427,27 +463,27 @@ class OpManager(object):
 			if newop.type == DOCUMENT_INSERT and op.type == DOCUMENT_INSERT:
 				if newop.index == op.index: # Prepending
 					op.property = newop.property + op.property
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					return
 				end = op.index + len(op.property)
 				if newop.index == end: # Appending
 					op.property += newop.property
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					return
 				if op.index < newop.index < end: # Inserting
 					op.property = op.property[:newop.index-op.index] + newop.property + op.property[newop.index-op.index:]
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					return
 			if newop.type == DOCUMENT_DELETE and op.type == DOCUMENT_INSERT:
 				if newop.index == op.index: # Delete from start
 					l = len(op.property)
 					op.property = op.property[newop.property:]
 					if op.property == "":
-						self.fireEvent("beforeOperationsRemoved", {"start": i, "end": i})
+						self.fireEvent("beforeOperationsRemoved", [i, i])
 						self.operations.pop(i)
-						self.fireEvent("afterOperationsRemoved", {"start": i, "end": i})
+						self.fireEvent("afterOperationsRemoved", [i, i])
 					else:
-						self.fireEvent("operationChanged", {"index": i})
+						self.fireEvent("operationChanged", i)
 					newop.property -= l
 					if newop.property <= 0: # Deleted less than last op's length
 						return
@@ -455,25 +491,25 @@ class OpManager(object):
 				if op.index < newop.index < end: # Delete from within
 					l = len(op.property) - (newop.index - op.index + newop.property)
 					op.property = op.property[:newop.index - op.index] + op.property[newop.index - op.index + newop.property:]
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					newop.property = -l
 					if newop.property <= 0: # Deleted less than last op's length
 						return
 			if newop.type == DOCUMENT_DELETE and op.type == DOCUMENT_DELETE:
 				if newop.index == op.index: # Delete at start
 					op.property += newop.property
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					return
 				if newop.index == op.index-newop.property: # Deleta at end
 					op.index -= newop.property
 					op.property += newop.property
-					self.fireEvent("operationChanged", {"index": i})
+					self.fireEvent("operationChanged", i)
 					return
 		
 		# If we reach this the operation could not be merged, so add it.
-		self.fireEvent("beforeOperationsInserted", {"start": i+1, "end": i+1})
+		self.fireEvent("beforeOperationsInserted", [i+1, i+1])
 		self.operations.append(newop)
-		self.fireEvent("afterOperationsInserted", {"start": i+1, "end": i+1})
+		self.fireEvent("afterOperationsInserted", [i+1, i+1])
 
 	# --------------------------------------------------------------------------
 

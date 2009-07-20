@@ -59,6 +59,8 @@ class PyCowContext(ast.NodeVisitor):
 		
 		"""
 		self.docstring = ""
+		self.module_license = ""
+		self.module_all = None
 		self.node = node
 		if node.__class__.__name__ == "FunctionDef":
 			if parent.type == "Class":
@@ -74,6 +76,7 @@ class PyCowContext(ast.NodeVisitor):
 		elif node.__class__.__name__ == "Module":
 			self.type = "Module"
 			self.name = "(Module)"
+			self.__get_docstring()
 		else:
 			raise ValueError("Only Module, ClassDef and FunctionDef nodes are allowed")
 		
@@ -108,6 +111,22 @@ class PyCowContext(ast.NodeVisitor):
 			self.visit(stmt)
 		for stmt in getattr(node, "orelse", []):
 			self.visit(stmt)
+	
+	def visit_Assign(self, stmt):
+		if not self.type == "Module": return
+		if len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+			if stmt.targets[0].id == "__all__":
+				if not isinstance(stmt.value, ast.List):
+					raise ParseError("Value of `__all__` must be a list expression (line %d)" % (stmt.lineno))
+				self.module_all = []
+				for expr in stmt.value.elts:
+					if not isinstance(expr, ast.Str):
+						raise ParseError("All elements of `__all__` must be strings (line %d)" % (expr.lineno))
+					self.module_all.append(expr.s)
+			elif stmt.targets[0].id == "__license__":
+				if not isinstance(stmt.value, ast.Str):
+					raise ParseError("Value of `__license__` must be a string (line %d)" % (stmt.lineno))
+				self.module_license = stmt.value.s
 	
 	def visit_TryFinally(self, node):
 		for stmt in node.body:
@@ -259,23 +278,39 @@ class PyCow(ast.NodeVisitor):
 		# Build context
 		self.__mod_context = PyCowContext(mod)
 		self.__curr_context = self.__mod_context
+		
+		if self.__mod_context.module_license != "":
+			first = True
+			for line in self.__mod_context.module_license.split("\n"):
+				if first:
+					self.__out.write("/* %s\n" % (line))
+					first = False
+				else:
+					self.__out.write(" * %s\n" % (line))
+			self.__out.write(" */\n\n")
+		
 		# Parse body
 		if self.__namespace != "":
-			self.__write("var %s = (function() {\n" % (self.__namespace))
+			if "." in self.__namespace:
+				self.__build_namespace(self.__namespace)
+			if self.__mod_context.docstring != "":
+				self.__write_docstring(self.__mod_context.docstring)
+			if "." not in self.__namespace:
+				self.__write("var ")
+			self.__write("%s = (function() {\n" % (self.__namespace))
 			self.__indent()
-		public_identifiers = None
+		else:
+			if self.__mod_context.docstring != "": self.__write_docstring(self.__mod_context.docstring)
+		
+		public_identifiers = self.__mod_context.module_all
 		
 		for stmt in mod.body:
 			if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and \
-					isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id == "__all__":
-				if not isinstance(stmt.value, ast.List):
-					raise ParseError("Value of `__all__` must be a list expression (line %d)" % (stmt.lineno))
-				public_identifiers = []
-				for expr in stmt.value.elts:
-					if not isinstance(expr, ast.Str):
-						raise ParseError("All elements of `__all__` must be strings (line %d)" % (expr.lineno))
-					public_identifiers.append(expr.s)
+					isinstance(stmt.targets[0], ast.Name) and \
+					stmt.targets[0].id in ("__all__", "__license__"):
 				continue
+			if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Str):
+				continue # Module docstring
 			self.__do_indent()
 			self.visit(stmt)
 			self.__semicolon(stmt)
@@ -402,16 +437,15 @@ class PyCow(ast.NodeVisitor):
 		elif isinstance(c.func, ast.Attribute):
 			if cls != None and isinstance(c.func.value, ast.Call) and isinstance(c.func.value.func, ast.Name) and c.func.value.func.id == "super":
 				# A super call
-				if c.func.attr == "__init__":
-					# Super constructor
+				if self.__curr_context.name == c.func.attr:
+					# Super constructor/method
 					self.visit(c.func.value) # Checks for errors on the 'super' call
 					self.__write("(")
 					self.__parse_args(c)
 					self.__write(")")
 					return
 				else:
-					# Super method
-					type = getattr(cls.child(c.func.attr), "type", None)
+					raise ParseError("The method name of a `super` call must match the current method's name (line %d)" % (c.lineno))
 			elif isinstance(c.func.value, ast.Name) and c.func.value.id == "self":
 				# Look in Class context
 				if cls != None:
@@ -1000,6 +1034,8 @@ class PyCow(ast.NodeVisitor):
 				first = False
 			else:
 				self.__write(",\n")
+			if isinstance(stmt, ast.FunctionDef):
+				self.__write("\n")
 			self.__do_indent()
 			self.visit(stmt)
 		self.__write("\n")
@@ -1219,6 +1255,15 @@ class PyCow(ast.NodeVisitor):
 				self.__write(";")
 			else:
 				self.__write(";\n")
+	
+	def __build_namespace(self, namespace):
+		namespace = namespace.split(".")
+		
+		self.__write("window.%s = $defined(window.%s) ? window.%s : {};\n" % (namespace[0], namespace[0], namespace[0]))
+		
+		for i in xrange(1, len(namespace) - 1):
+			self.__write("%s.%s = $defined(%s.%s) ? %s.%s : {};\n" % (namespace[i-1], namespace[0], namespace[i-1], namespace[0], namespace[i-1], namespace[0]))
+		self.__write("\n")
 
 def translate_string(input, indent = "\t", namespace = "", warnings = True):
 	"""
@@ -1242,6 +1287,7 @@ def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""
 	if out_filename == "":
 		out_filename = in_filename + ".js"
 	outfile = open(out_filename, "w")
+	outfile.write("/* This file was generated with PyCow - the Python to JavaScript translator */\n\n")
 	moo = PyCow(outfile, indent, namespace, warnings)
 	input = open(in_filename, "r").read()
 	moo.visit(ast.parse(input, in_filename))

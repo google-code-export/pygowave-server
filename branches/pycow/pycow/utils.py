@@ -51,7 +51,9 @@ class Events(object):
 			return self
 		
 		for fn in evts[type]:
-			if args != None:
+			if isinstance(args, list):
+				fn(*args)
+			elif args != None:
 				fn(args)
 			else:
 				fn()

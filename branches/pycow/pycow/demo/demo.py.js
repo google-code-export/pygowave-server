@@ -1,3 +1,5 @@
+/* This file was generated with PyCow - the Python to JavaScript translator */
+
 /* from pycow.decorators import Implements, Class */;
 
 /* from pycow.utils import Events, Options, Hash */;
@@ -6,15 +8,18 @@
  * Docstring of class
  */
 var Someclass = new Class({
+
 	/**
 	 * Docstring of constructor/method
 	 */
 	initialize: function (something) {
 		this.something = something + "string literal";
 	},
+
 	a_method: function (otherthing) {
 		dbgprint(this.something + otherthing);
 	},
+
 	another_method: function () {
 		var obj = new SomeExtension();
 		this.member = "test";
@@ -23,11 +28,13 @@ var Someclass = new Class({
 
 var SomeExtension = new Class({
 	Extends: Someclass,
+
 	initialize: function () {
 		this.parent("1234");
 	},
+
 	a_method: function (otherthing) {
-		this.parent.a_method(otherthing);
+		this.parent(otherthing);
 		dbgprint(otherthing, this.something);
 	}
 });
@@ -51,6 +58,10 @@ var obj = new Someclass("a lengthy ");
 
 /* Warning: Cannot infer type of -> */ obj.a_method("test");
 
+obj = new SomeExtension();
+
+/* Warning: Cannot infer type of -> */ obj.a_method(" sub");
+
 a_function();
 
 /**
@@ -63,6 +74,7 @@ var ClassWithOptions = new Class({
 		name: "value",
 		foo: "bar"
 	},
+
 	initialize: function (options) {
 		/* Warning: Cannot infer type of -> */ this.setOptions(options);
 		dbgprint(this.options.foo, this.options.name);

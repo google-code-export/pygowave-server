@@ -60,22 +60,22 @@ class OperationsModel(QAbstractTableModel):
 		else:
 			return QVariant(section)
 	
-	def __beforeOperationsInserted(self, args):
-		self.beginInsertRows(QModelIndex(), args["start"], args["end"])
+	def __beforeOperationsInserted(self, start, end):
+		self.beginInsertRows(QModelIndex(), start, end)
 	
-	def __afterOperationsInserted(self, args):
+	def __afterOperationsInserted(self, start, end):
 		self.endInsertRows()
 	
-	def __beforeOperationsRemoved(self, args):
-		self.beginRemoveRows(QModelIndex(), args["start"], args["end"])
+	def __beforeOperationsRemoved(self, start, end):
+		self.beginRemoveRows(QModelIndex(), start, end)
 	
-	def __afterOperationsRemoved(self, args):
+	def __afterOperationsRemoved(self, start, end):
 		self.endRemoveRows()
 	
-	def __operationChanged(self, args):
+	def __operationChanged(self, index):
 		self.dataChanged.emit(
-			self.index(args["index"], 2, QModelIndex()),
-			self.index(args["index"], 3, QModelIndex())
+			self.index(index, 2, QModelIndex()),
+			self.index(index, 3, QModelIndex())
 		)
 
 class UserWindow(QWidget, Ui_UserWindow):
@@ -185,7 +185,7 @@ class UserWindow(QWidget, Ui_UserWindow):
 			else:
 				self.rootBlip.setStyleSheet("")
 
-	def __afterOperationsInserted(self, args):
+	def __afterOperationsInserted(self, start, end):
 		if not self.hasPendingOperations():
 			self.opsPending.put(self.opsCache.fetch())
 			self.__ackPending = True
