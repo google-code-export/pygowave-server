@@ -562,13 +562,16 @@ class PyCow(ast.NodeVisitor):
 		
 		"""
 		self.visit(c.left)
-		for i in xrange(len(c.ops)):
-			op, expr = c.ops[i], c.comparators[i]
-			self.__write(" %s " % (self.__get_op(op)))
-			prec, assoc = self.__get_expr_pa(expr)
-			if prec > 2: self.__write("(")
-			self.visit(expr)
-			if prec > 2: self.__write(")")
+		
+		if len(c.ops) > 1:
+			raise ParseError("Comparisons with more than one operator are not supported (line %d)" % (c.lineno))
+		
+		op, expr = c.ops[0], c.comparators[0]
+		self.__write(" %s " % (self.__get_op(op)))
+		prec, assoc = self.__get_expr_pa(expr)
+		if prec > 2: self.__write("(")
+		self.visit(expr)
+		if prec > 2: self.__write(")")
 	
 	def visit_Global(self, g):
 		"""
@@ -1290,5 +1293,7 @@ def translate_file(in_filename, out_filename = "", indent = "\t", namespace = ""
 	outfile.write("/* This file was generated with PyCow - the Python to JavaScript translator */\n\n")
 	moo = PyCow(outfile, indent, namespace, warnings)
 	input = open(in_filename, "r").read()
-	moo.visit(ast.parse(input, in_filename))
-	outfile.close()
+	try:
+		moo.visit(ast.parse(input, in_filename))
+	finally:
+		outfile.close()
