@@ -106,11 +106,20 @@ class Hash(dict):
 		except KeyError:
 			return None
 	
+	def has(self, key):
+		return self.has_key(key)
+
 	def getValues(self):
 		return self.values()
 	
 	def getKeys(self):
 		return self.keys()
+	
+	def getClean(self):
+		return dict(self)
+	
+	def extend(self, other):
+		self.update(other)
 
 class JSON(object):
 	def encode(self, obj):

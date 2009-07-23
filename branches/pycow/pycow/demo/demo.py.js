@@ -189,7 +189,7 @@ delete b.a;
 
 dbgprint("Demo %d %s %.2f".sprintf(b["-test-"], "abc", 0.123456));
 
-dbgprint(1 > 2 > 4 && 2 * 3 > 8);
+dbgprint(1 > 2 && 2 * 3 > 8);
 
 dbgprint(1 * (2 + 4) * -(1 + 2));
 

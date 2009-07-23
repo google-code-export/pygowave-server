@@ -171,7 +171,7 @@ del b["a"]
 print "Demo %d %s %.2f" % (b["-test-"], "abc", 0.123456)
 
 # Operator precedence test
-print (1 > 2 > 4) and ((2 * 3) > 8) # removes all parentheses
+print (1 > 2) and ((2 * 3) > 8) # removes all parentheses
 print 1 * (2 + 4) * -(1 + 2) # keeps all parentheses
 print (True and True) and False or False
 
