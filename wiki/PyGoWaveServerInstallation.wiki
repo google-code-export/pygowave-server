@@ -1,4 +1,4 @@
-#summary Set up your own !PyGoWave Server
+#summary Set up your own PyGoWave Server
 #labels Phase-Deploy
 
 = Introduction =
@@ -15,12 +15,12 @@ For those of you who are also running this nifty little linux distribution, you 
 
 Packages from the main repository:
 {{{
-mysql apache django
+mysql apache django python-lxml
 }}}
 
-Packages from the user repository (all except orbited are maintained by me, by the way):
+Packages from the user repository:
 {{{
-rabbitmq rabbitmq-stomp carrot orbited
+rabbitmq rabbitmq-stomp carrot orbited django-registration
 
 Optional:
 django-rosetta
@@ -28,7 +28,7 @@ django-rosetta
 
 = Step-by-Step =
 
-PGWS is powered by Django, MySQL, Apache, RabbitMQ and Orbited. Additionally some python library must be installed for proper operation.
+PGWS is powered by Django, MySQL, Apache, RabbitMQ and Orbited. Additionally some python libraries must be installed for proper operation.
 
 *A warning/information in advance: You will set up a localhost environment that should not be reachable from the web. If you want to do so you are advised to change all database names, usernames and passwords throughout this document for your security.*
 
@@ -38,11 +38,18 @@ My [http://www.archlinux.org/ Linux distribution] keeps Apache's settings in /et
 
 == MySQL ==
 
-I use [http://www.mysql.com/ MySQL 5.0.77] as database backend. Install it and create a database named "pygowave". Then add a user "pygowave" with password "pygowave" and grant him all rights on the "pygowave" database.
+I use [http://www.mysql.com/ MySQL 5.1.37] as database backend. Install it and create a database named "pygowave". Then add a user "pygowave" with password "pygowave" and grant him all rights on the "pygowave" database.
+
+You can do this by running "`mysql -u root -p`" from a shell. After entering your root password, execute the following commands:
+{{{
+CREATE DATABASE `pygowave`;
+CREATE USER 'pygowave'@'localhost' IDENTIFIED BY 'pygowave';
+GRANT ALL PRIVILEGES ON `pygowave`.* TO 'pygowave'@'localhost' WITH GRANT OPTION;
+}}}
 
 == Django ==
 
-[http://www.djangoproject.com/ Django 1.0.2] is used to serve all dynamically generated websites of PGWS plus the storage and management of PGWS data model. Just install it with a package manager of your choice or by compiling from source.
+[http://www.djangoproject.com/ Django 1.1] is used to serve all dynamically generated websites of PGWS plus the storage and management of PGWS data model. Just install it with a package manager of your choice or by compiling from source.
 
 == Apache ==
 
@@ -84,7 +91,7 @@ Change paths as appropriate for your system.
 
 == Orbited ==
 
-Orbited 0.7.7 is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its [http://orbited.org/ homepage].
+[http://orbited.org/ Orbited 0.7.9] is the middleware which is used to connect your Browser continuosly to PGWS' message handler. Just follow the steps given on its homepage.
 
 After that, set up /etc/orbited.cfg like this:
 {{{
@@ -118,21 +125,15 @@ Change "user=" and "group=" to your Apache's user and group. This is "apache2" o
 
 == RabbitMQ ==
 
-RabbitMQ is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. I am running version 1.6.0.
-
-[http://www.rabbitmq.com/server.html Please install it first].
+[http://www.rabbitmq.com/server.html RabbitMQ 1.6.0] is a huge scalable message queueing system written in Erlang. All of PGWS asynchronous communication flows through it. Please install it first.
 
 After going through normal installation, you need the rabbitmq-stomp gateway. Its best to get the code via mercurial:
 {{{
-hg clone -r rabbitmq_v1_5_5 http://hg.rabbitmq.com/rabbitmq-stomp
+hg clone -r rabbitmq_v1_6_0 http://hg.rabbitmq.com/rabbitmq-stomp
 }}}
-If you don't want to install mercurial there is also this [http://hg.rabbitmq.com/rabbitmq-stomp/archive/7376596ad8a4.zip link] to a zipped version of that release.
+If you don't want to install mercurial there is also this [http://hg.rabbitmq.com/rabbitmq-stomp/archive/6d49eaa2fc25.tar.gz link] to get a tarball of that release.
 
-There is an issue concerning compatibility to RabbitMQ 1.6.0 - I have created a patch to make it work:
-{{{
-wget http://aur.archlinux.org/packages/rabbitmq-stomp/rabbitmq-stomp/rabbitmq-stomp-1.6.0.diff
-patch -Np0 < rabbitmq-stomp-1.6.0.diff
-}}}
+(Note: The compatibility issue with RabbitMQ 1.6.0 is now resolved)
 
 As said in the README you need to compile rabbitmq-stomp like this:
 {{{
@@ -188,8 +189,8 @@ Don't quit it right now, log into another shell instead. You need to create a cl
 rabbitmqctl change_password guest $RANDOM$RANDOM$RANDOM
 rabbitmqctl add_user pygowave_client pygowave_client
 rabbitmqctl add_user pygowave_server pygowave_server
-rabbitmqctl set_permissions pygowave_client "^[^.]+\.[^.]+\.waveop$|^wavelet.direct$" "^[^.]+\.[^.]+\.clientop$|^wavelet.topic$" "^[^.]+\.[^.]+\.clientop$|^wavelet.direct$"
-rabbitmqctl set_permissions pygowave_server '^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$' '^wavelet_rpc_singlethread$|^wavelet\.direct$' '^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$'
+rabbitmqctl set_permissions pygowave_client '^[^.]+\.[^.]+\.waveop$|^wavelet.direct$' '^[^.]+\.[^.]+\.(waveop|clientop)$|^wavelet.topic$' '^[^.]+\.[^.]+\.(clientop|waveop)$|^wavelet.direct$'
+rabbitmqctl set_permissions pygowave_server '^[^.]+\.[^.]+\.waveop$|^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$' '^[^.]+\.[^.]+\.waveop$|^wavelet_rpc_singlethread$|^wavelet\.direct$' '^[^.]+\.[^.]+\.waveop$|^wavelet_rpc_singlethread$|^wavelet\.(topic|direct)$'
 }}}
 
 Take a break and relax, you just mastered the hardest part of PGWS' installation :D
@@ -197,19 +198,19 @@ Take a break and relax, you just mastered the hardest part of PGWS' installation
 == Other Python libraries ==
 
 You need to install the following Python libraries for PGWS to operate:
- * [http://codespeak.net/lxml/ lxml 2.2]
+ * [http://codespeak.net/lxml/ lxml 2.2.2]
  * [http://www.pythonware.com/products/pil/index.htm PIL 1.1.6]
- * [http://pypi.python.org/pypi/carrot/0.5.0 carrot 0.5.0]
+ * [http://pypi.python.org/pypi/carrot/0.5.1 carrot 0.5.1]
 
 == Get !PyGoWave Server ==
 
 Now that you have set up all dependencies, checkout PGWS from Google Code:
 {{{
 cd /srv/http
-svn checkout http://pygowave-server.googlecode.com/svn/tags/alpha_0.2 pygowave_project
+svn checkout http://pygowave-server.googlecode.com/svn/tags/alpha_0.3 pygowave_project
 }}}
 
-This installs the *alpha 0.2* release. You can switch to newer releases as they become available.
+This installs the *alpha 0.3* release. You can switch to newer releases as they become available.
 
 == Check your settings.py ==
 
