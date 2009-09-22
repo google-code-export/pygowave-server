@@ -48,7 +48,9 @@ len = function (obj) {
  * If the argument is a string, the return value is the same object.
  */
 str = function (obj) {
-	if ($defined(obj.__str__))
+	if (!$defined(obj))
+		return "null";
+	else if ($defined(obj.__str__))
 		return obj.__str__();
 	else if ($type(obj) == "number")
 		return String(obj);
@@ -115,6 +117,8 @@ dbgprint = function () {
 	
 	if ($defined(window.console))
 		window.console.info(s);
+	else if (Browser.Engine.presto && $defined(opera.postError))
+		opera.postError(s);
 	else
 		alert(s);
 }
@@ -244,7 +248,34 @@ sprintfWrapper = {
 		}
 	}
 };
- 
+
+/*
+ * Convert a unicode string to utf-8
+ * http://www.webtoolkit.info/
+ */
+utf8encode = function (string) {
+	string = string.replace(/\r\n/g,"\n");
+	var utftext = "";
+	
+	for (var n = 0; n < string.length; n++) {
+		var c = string.charCodeAt(n);
+		if (c < 128) {
+			utftext += String.fromCharCode(c);
+		}
+		else if((c > 127) && (c < 2048)) {
+			utftext += String.fromCharCode((c >> 6) | 192);
+			utftext += String.fromCharCode((c & 63) | 128);
+		}
+		else {
+			utftext += String.fromCharCode((c >> 12) | 224);
+			utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+			utftext += String.fromCharCode((c & 63) | 128);
+		}
+	}
+	
+	return utftext;
+};
+
 sprintf = sprintfWrapper.init;
 
 String.implement({
@@ -258,10 +289,17 @@ String.implement({
 	},
 	endswith: function (s) {
 		return this.slice(this.length-s.length) == s;
+	},
+	encode: function (encoding) {
+		encoding = encoding.toLowerCase();
+		if (encoding == "utf8" || encoding == "utf-8")
+			return utf8encode(this);
+		throw Error("Unknown encoding: " + encoding);
 	}
 });
 
 String.alias("toLowerCase", "lower");
+String.alias("toUpperCase", "upper");
 Hash.alias("extend", "update");
 
 Array.implement({
