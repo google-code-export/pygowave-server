@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% get_current_language as LANGUAGE_CODE %}
+{% load pgw_nav %}
+
+{% block title %}{% trans "Welcome" %}{% endblock %}
+{% block nav %}{% pgw_navbar "home" "welcome" %}{% endblock %}
+
+{% block content %}
+<div class="content_div">
+<div class="wavelet_participant as_avatar">
+	<img class="thumbnail" src="{% if profile.avatar %}{{ profile.avatar }}{% else %}{{ AVATAR_URL }}/default.png{% endif %}" alt="{{ profile.name }}" title="{{ profile.name }}" />
+</div>
+<h1>
+{% blocktrans %}
+Welcome {{ username }}, enjoy your stay!
+{% endblocktrans %}
+</h1>
+<p>
+{% blocktrans count online_count as online_count %}
+Currently, there is <b>{{ online_count }}</b> user online out of
+{{ users_count }} registred users.
+{% plural %}
+Currently, there are <b>{{ online_count }}</b> users online out of
+{{ users_count }} registred users.
+{% endblocktrans %}
+</p>
+{% include "pygowave_server/project_status.html" %}
+</div>
+{% endblock %}

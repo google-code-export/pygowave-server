@@ -1,0 +1,391 @@
+
+html
+{
+	height: 100%;
+}
+
+body
+{
+	font-family: Arial, sans-serif;
+	font-size: 62.5%;
+}
+
+p, h1
+{
+	margin: 0;
+}
+
+th
+{
+	text-align: left;
+}
+
+h1
+{
+	font-size: 1.3em;
+	border-bottom: 0 none;
+	margin-left: 0;
+	padding: 0;
+}
+
+h4
+{
+	background-color: #cadef4;
+	border-top: 1px solid #93b4d9;
+	margin: 4px 4px 0;
+	padding: 2px;
+	font-size: small;
+}
+
+a img
+{
+	border: 0;
+}
+
+p
+{
+	padding: 0 0 1em;
+}
+
+.container_narrow
+{
+	font-size: 1.3em;
+	margin: 0 auto;
+	width: 770px;
+}
+
+.container_wide
+{
+	font-size: 1.3em;
+	margin: 0 auto; 
+}
+
+#content_div
+{
+	clear: both;
+	padding: 4px;
+}
+
+#lang_div
+{
+	text-align: right;
+	padding-top: 10px;
+}
+
+#container p
+{
+	line-height: 150%;
+}
+
+.gwlogo
+{
+	float: left;
+	margin-left: 4px;
+}
+
+.loginbox
+{
+	background-color: #cadef4;
+	border: 1px solid #93b4d9;
+	float: right;
+	width: 210px;
+	padding: 4px;
+	margin-left: 10px;
+	margin-bottom: 10px;
+}
+
+.loginbox form
+{
+	margin: 0;
+}
+
+.loginbox #id_password, .loginbox #id_username
+{
+	width: 98px;
+}
+
+.errorlist
+{
+	margin: 0;
+	padding: 0;
+	list-style-type: none;
+}
+
+.errorlist li
+{
+	display: inline;
+	color: #CC0000;
+}
+
+.submit_td
+{
+	padding-top: 4px;
+	text-align: right;
+}
+
+.reg_link
+{
+	font-weight: normal;
+}
+
+.auth_fail
+{
+	color: red;
+	width: 100%;
+	text-align: center;
+	margin-bottom: 4px;
+}
+
+#topmenu
+{
+	border-collapse: collapse;
+	width: 100%;
+	height: 20px;
+	margin-top: 5px;
+	margin-bottom: 0;
+	padding: 0;
+	clear: both;
+}
+
+#topmenu a
+{
+	text-decoration: none;
+	color: black;
+}
+
+#topmenu th
+{
+	cursor: pointer;
+	font-weight: bold;
+	text-align: center;
+	padding: 0;
+}
+
+#topmenu .tab
+{
+	margin: 0;
+	padding-top: 4px;
+	padding-left: 12px;
+	padding-bottom: 4px;
+	padding-right: 12px;
+}
+
+#topmenu .active
+{
+	background-color: #C3D9FF;
+}
+
+#topmenu .inactive
+{
+	background-color: #E5ECF9;
+}
+
+#submenu
+{
+	margin: 0;
+	padding-top: 4px;
+	padding-bottom: 4px;
+	padding-left: 8px;
+	padding-right: 8px;
+	height: 16px;
+	background-color: #C3D9FF;
+	text-align: right;
+	font-weight: bold;
+}
+
+.submenu_disabled
+{
+	color: #A0A0A0;
+}
+
+.submenu_div
+{
+	float: left;
+}
+
+#id_profile
+{
+	width: 280px;
+}
+
+.section
+{
+	margin: 0 4px 1.1em;
+	padding: 4px;
+}
+
+.gadget_form #id_title
+{
+	width: 200px;
+}
+
+.gadget_form #id_upload
+{
+	width: 390px;
+}
+
+.gadget_form #id_url
+{
+	width: 390px;
+}
+
+.gadget_form .errorlist
+{
+	padding-bottom: 4px;
+	font-weight: bold;
+}
+
+.success_message
+{
+	color: #33CC00;
+	font-weight: bold;
+}
+
+.tooltip
+{
+	background-color: #EEEEEE;
+	border: 1px solid #111111;
+	opacity: 0.85;
+	padding: 5px;
+	position: absolute;
+	z-index: 3000;
+	font-size: 1.2em;
+}
+
+.as_avatar
+{
+	margin-top: 0  !important;
+	margin-left: 0 !important;
+}
+
+.gadget_title
+{
+	cursor: help;
+}
+
+.gadget_loader_fail
+{
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.gadget_loader_fail .bg_div
+{
+	width: 100%;
+	height: 100%;
+	background: url(../images/ui-bg_diagonals-thick_18_b81900_40x40.png) repeat scroll 50% 50%;
+	opacity: 0.5;
+}
+
+.gadget_loader_fail .msg_div
+{
+	color: #CC0000;
+	font-weight: bold;
+	background-image: url(../images/generic_error.png);
+	background-repeat: no-repeat;
+	background-position: 5px 8px;
+	background-color: #CCCCCC;
+	padding-left: 32px;
+	padding-top: 5px;
+	padding-bottom: 5px;
+	font-size: 1.3em;
+}
+
+.button_box
+{
+	float: right;
+	padding-left: 10px;
+}
+
+#gadget_container
+{
+	margin-top: 10px;
+	padding: 5px;
+}
+
+#gadget_frame
+{
+	height: 100%;
+	width: 100%;
+	border: 1px solid black;
+}
+
+#wave_container
+{
+	width: 100%;
+	height: auto;
+}
+
+.donate_div
+{
+	position: absolute;
+	bottom: 13px;
+	display: table;
+}
+
+.donate_content
+{
+	display: table-cell;
+	vertical-align: bottom;
+	font-size: 0.8em;
+	padding-right: 4px;
+}
+
+.compat_table
+{
+	padding: 0;
+}
+
+.compat_table td
+{
+	height: 22px;
+	padding: 0;
+}
+
+.compat_table img
+{
+	margin-top: 2px;
+}
+
+.compat_table .browser
+{
+	width: 16px;
+	padding-right: 5px;
+}
+
+.compat_table .name
+{
+	padding-right: 5px;
+}
+
+.compat_table .used
+{
+	padding-right: 5px;
+	font-size: 0.7em;
+	text-align: center;
+}
+
+.compat_table .os
+{
+	padding-left: 20px;
+	padding-right: 5px;
+	background-repeat: no-repeat;
+	background-position: 0 3px;
+}
+
+.compat_table .os.used
+{
+	text-align: left;
+	height: 24px;
+}
+
+.compat_table .os.win {background-image: url(../images/compat/win.png);}
+.compat_table .os.lin {background-image: url(../images/compat/linux.png);}
+.compat_table .os.mac {background-image: url(../images/compat/mac.png);}
+
+.doc_text
+{
+	font-size: 0.9em;
+	margin-bottom: 5px;
+}

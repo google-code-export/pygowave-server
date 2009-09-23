@@ -1,0 +1,122 @@
+{% extends "base_transitional.html" %}
+{% load i18n %}
+{% get_current_language_bidi as LANGUAGE_BIDI %}
+{% load pgw_nav %}
+{% load pygowave_client_scripts %}
+
+{% block title %}{% trans "On the Wave" %}{% endblock %}
+{% block nav %}{% pgw_navbar "waves" "on_the_wave" %}{% endblock %}
+{% block additional_header %}
+	<script type="text/javascript">
+		// Cut to minimum to allow cross-subdomain access
+		try {
+			document.domain = document.domain.split('.').slice(-2).join('.');
+		}
+		catch (e){
+			document.domain = document.domain;
+		}
+	</script>
+	<script type="text/javascript">
+	document.write(unescape("%3Cscript src='" + document.location.protocol + "//{{ ORBITED_SERVER }}:{{ ORBITED_PORT }}/static/Orbited.js' type='text/javascript'%3E%3C/script%3E"));
+	</script>
+	<script type="text/javascript">
+		// --- Orbited configuration ---
+		Orbited.settings.port = {{ ORBITED_PORT }};
+		Orbited.settings.protocol = document.location.protocol.slice(0, -1);
+		Orbited.settings.hostname = "{{ ORBITED_SERVER }}";
+		Orbited.settings.log = true;
+		Orbited.getLogger().enabled = true;
+		TCPSocket = Orbited.TCPSocket;
+	</script>
+	<script type="text/javascript">
+	document.write(unescape("%3Cscript src='" + document.location.protocol + "//{{ ORBITED_SERVER }}:{{ ORBITED_PORT }}/static/protocols/stomp/stomp.js' type='text/javascript'%3E%3C/script%3E"));
+	</script>
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/pycow.js"></script>
+	<script type="text/javascript" src="{% url django.views.i18n.javascript_catalog %}"></script>
+{% script_links %}
+
+{% endblock %}
+
+{% block content %}
+<h4>{{ wavelet_title }}</h4>
+<div class="section">
+	<div class="button_box">
+	<button id="leave_button" class="mochaButton mochaImageButton" type="button">
+		{% if LANGUAGE_BIDI %}<div>{% trans "Leave Wave" %}</div>{% endif %}
+		<img src="{{ MEDIA_URL }}images/leave.png" height="22" width="22" alt="{% trans "Leave Wave" %}" />
+		{% if not LANGUAGE_BIDI %}<div>{% trans "Leave Wave" %}</div>{% endif %}
+	</button>
+	<button id="debug_button" class="mochaButton mochaImageButton" type="button">
+		{% if LANGUAGE_BIDI %}<div>{% trans "Debug" %}</div>{% endif %}
+		<img src="{{ MEDIA_URL }}images/debug.png" height="22" width="22" alt="{% trans "Debug" %}" />
+		{% if not LANGUAGE_BIDI %}<div>{% trans "Debug" %}</div>{% endif %}
+	</button>
+	</div>
+	
+	<div class="doc_text">
+	{% blocktrans %}
+	Hints: Click on the "+" to add a friend to your wave. The search currently
+	covers the whole database of users. You cannot remove other people but you
+	can remove yourself from a wave by clicking the "Leave Wave" button on the
+	right hand side. Again, this application is experimental and may not work
+	as expected.
+	{% endblocktrans %}
+	</div>
+
+	<div id="wave_container">
+		<!-- The content is dynamically rendered through our client script. -->
+	</div>
+	<script type="text/javascript">
+		$("debug_button").set("disabled", "disabled");
+		$("leave_button").set("disabled", "disabled");
+		
+		document.addEvent('domready', function () {
+			
+			document.body.setStyle("overflow-y", "hidden");
+			
+			model = new pygowave.model.WaveModel("{{ wave_id|escapejs }}", "{{ participant_id|escapejs }}");
+			
+			view = new pygowave.view.WaveView(
+				model,
+				$('wave_container'),
+				{
+					gadgetLoaderUrl: "{% url pygowave_server.views.gadget_loader %}?wave=1&",
+					defaultThumbnailUrl: "{{ AVATAR_URL }}default.png"
+				}
+			);
+			
+			$("leave_button").addEvent("click", function () {
+				view.confirmLeaveWave();
+			});
+			
+			controller = new pygowave.controller.PyGoWaveClient(
+				model,
+				view,
+				{
+					// Random generated access keys
+					waveAccessKeyTx: "{{ wave_access_key.tx }}",
+					waveAccessKeyRx: "{{ wave_access_key.rx }}",
+					
+					initialWave: "{{ wave_id|escapejs }}",
+					initialWavelet: "{{ wavelet_id|escapejs }}",
+					viewerId: "{{ participant_id|escapejs }}",
+					
+					waveOverviewUrl: "{% url pygowave_server.views.wave_list %}"
+				}
+			);
+			
+			controller.connect();
+			
+			// Debugging
+			$("debug_button").addEvent("click", function () {
+				ov = new pygowave.view.OperationsViewer(controller, controller.options.initialWavelet);
+			});
+			controller.addEvent("waveletOpened", function (wave_id, wavelet_id) {
+				$("debug_button").set("disabled", "");
+				$("leave_button").set("disabled", "");
+				window.fireEvent("resize");
+			});
+		});
+	</script>
+</div>
+{% endblock %}

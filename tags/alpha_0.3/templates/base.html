@@ -1,0 +1,108 @@
+{% load i18n %}
+{% get_current_language as LANGUAGE_CODE %}
+{% get_current_language_bidi as LANGUAGE_BIDI %}
+{% block doctype %}<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">{% endblock %}
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+	<title>{% block title %}Untitled{% endblock %} - PyGoWave Server</title>
+	<link rel="icon" href="{{ MEDIA_URL }}images/favicon2.ico" type="image/x-icon" />
+	<link rel="stylesheet" href="{{ MEDIA_URL }}css/style.css" type="text/css" />
+	<link rel="stylesheet" href="{{ MEDIA_URL }}css/mocha.css" type="text/css" />
+	<link rel="stylesheet" href="{{ MEDIA_URL }}css/pygowave-client-style.css" type="text/css" />{% if LANGUAGE_BIDI %}
+	<link rel="stylesheet" href="{{ MEDIA_URL }}css/style-rtl.css" type="text/css" />{% endif %}
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/mootools-1.2-core-nc.js"></script>
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/mootools-1.2-more.js"></script>
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/mootools-corners.js"></script>
+	<!--[if IE]>
+		<script type="text/javascript" src="{{ MEDIA_URL }}js/excanvas.compiled.js"></script>
+	<![endif]-->
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/mocha.js"></script>
+	<script type="text/javascript" src="{{ MEDIA_URL }}js/mocha-tabify.js"></script>
+{% block additional_header %}{% endblock %}
+	
+{% if not IS_LOCAL %}
+	<!-- Begin Google Analytics Code-->
+	<script type="text/javascript">
+	var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+	document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+	</script>
+	<script type="text/javascript">
+	try {
+		var pageTracker = _gat._getTracker("UA-9157095-3");
+		pageTracker._trackPageview();
+	} catch(err) {}
+	</script>
+	<!-- End Google Analytics Code-->
+{% endif %}
+</head>
+
+<body>
+	<div id="container" class="{% block container_class %}container_wide{% endblock %}">
+		<img class="gwlogo" src="{{ MEDIA_URL }}images/pygowave_logo.png" width="164" height="40" alt="Google Wave" />
+		<div id="lang_div">(<a href="javascript:setLanguage();" title="{% trans "Change language" %}">{{ LANGUAGE_CODE }}</a>)</div>
+		{% block nav %}{% endblock %}
+		<div id="content_div"{% if LANGUAGE_BIDI %} class="content_div_rtl"{% endif %}>
+		{% block content %}{% endblock %}
+		</div>
+	</div>
+	<script type="text/javascript">
+		// Style helpers
+		$$(".tab").corners("4px top");
+		
+		// Language selector
+		window.addEvent('domready', function() {
+			MochaUI.Modal = new MochaUI.Modal();
+		});
+		
+		languages = {
+			{% for lang in LANGUAGES %}
+			"{{ lang.0 }}": "{{ lang.1 }}"{% if not forloop.last %},{% endif %}
+			{% endfor %}
+		};
+		currentLanguage = "{{ LANGUAGE_CODE }}";
+		
+		setLanguage = function () {
+			var languageBox = new Element('div', {id: "languagebox"});
+			new Element('p').set('text', "{% trans "Please select your language:" %}").inject(languageBox);
+			var languageForm = new Element('form', {
+				id: "languageform",
+				method: "post",
+				action: "{% url django.views.i18n.set_language %}"}).inject(languageBox);
+			var languageSelect = new Element('select', {name: "language"}).inject(new Element('div').inject(languageForm));
+			$each(languages, function (v, k) {
+				var el = new Element('option', {value: k, text: v}).inject(this);
+				if (k == currentLanguage)
+					el.setProperty('selected', 'selected');
+			}, languageSelect);
+			
+			new MochaUI.Window({
+				title: "{% trans "Select language" %}",
+				type: "modal",
+				content: languageBox,
+				width: 280,
+				height: 140,
+				headerStartColor: [95, 163, 237],
+				headerStopColor: [85, 144, 210],
+				bodyBgColor: [201, 226, 252],
+				closeBgColor: [66, 114, 166],
+				closeColor: [255, 255, 255],
+				cornerRadius: 4,
+				resizable: false,
+				footerHeight: 34,{% if LANGUAGE_BIDI %}
+				rtl: true,{% endif %}
+				buttons: {
+					"{% trans "Cancel" %}": function () {
+						MochaUI.closeWindow(this);
+					},
+					"{% trans "OK" %}": function () {
+						$("languageform").submit();
+					}
+				}
+			});
+		}
+	</script>
+</body>
+
+</html>
